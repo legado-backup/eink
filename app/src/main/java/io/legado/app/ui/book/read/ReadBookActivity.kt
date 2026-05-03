@@ -145,6 +145,12 @@ import androidx.lifecycle.Lifecycle
 import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
+// 阅读统计精准计时
+private var readStartTime: Long = 0L
+// 定时心跳任务
+private var recordHeartJob: Job? = null
+// 最小有效阅读时长 10秒过滤误点
+private val minValidReadTime = 10000L
 
 /**
  * 阅读界面
@@ -344,6 +350,14 @@ class ReadBookActivity : BaseReadBookActivity(),
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onResume() {
         super.onResume()
+        readStartTime = System.currentTimeMillis()
+recordHeartJob?.cancel()
+recordHeartJob = lifecycleScope.launch(Dispatchers.IO) {
+    while (true) {
+        delay(30000)
+        saveReadRecord(false)
+    }
+}
         ReadBook.readStartTime = System.currentTimeMillis()
         if (bookChanged) {
             bookChanged = false
@@ -375,6 +389,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     super.onPause()
     autoPageStop()
     backupJob?.cancel()
+    recordHeartJob?.cancel()
+saveReadRecord(true)
     ReadBook.saveRead()
     ReadBook.cancelPreDownloadTask()
     unregisterReceiver(timeBatteryReceiver)
@@ -392,24 +408,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     justInitData = false
     networkChangedListener.unRegister()
 
-    // 写入每日阅读统计 适配热力图/今日/本月/活跃天
-    lifecycleScope.launch(Dispatchers.IO) {
-        val today = java.time.LocalDate.now().toString()
-        val spendTime = System.currentTimeMillis() - ReadBook.readStartTime
-        val todayRecord = appDb.readRecordDailyDao.get(today)
-        if (todayRecord == null) {
-            val newRecord = io.legado.app.data.entities.ReadRecordDaily(
-                date = today,
-                readTime = spendTime,
-                updatedAt = System.currentTimeMillis()
-            )
-            appDb.readRecordDailyDao.insert(newRecord)
-        } else {
-            todayRecord.readTime += spendTime
-            todayRecord.updatedAt = System.currentTimeMillis()
-            appDb.readRecordDailyDao.insert(todayRecord)
-        }
-    }
+    
 }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
@@ -1873,5 +1872,30 @@ class ReadBookActivity : BaseReadBookActivity(),
     companion object {
         const val RESULT_DELETED = 100
     }
+    
+    // 统一保存阅读时长统计
+private fun saveReadRecord(isLeave: Boolean) {
+    val nowTime = System.currentTimeMillis()
+    val spendTime = nowTime - readStartTime
+    // 小于10秒不统计，过滤误点
+    if (spendTime < minValidReadTime) return
+
+    lifecycleScope.launch(Dispatchers.IO) {
+        val today = java.time.LocalDate.now().toString()
+        val todayRecord = appDb.readRecordDailyDao.get(today)
+        if (todayRecord == null) {
+            val newRecord = io.legado.app.data.entities.ReadRecordDaily(
+                date = today,
+                readTime = spendTime,
+                updatedAt = nowTime
+            )
+            appDb.readRecordDailyDao.insert(newRecord)
+        } else {
+            todayRecord.readTime += spendTime
+            todayRecord.updatedAt = nowTime
+            appDb.readRecordDailyDao.insert(todayRecord)
+        }
+    }
+}
 
 }
