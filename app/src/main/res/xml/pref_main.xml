@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:divider="@color/transparent"
+    app:allowDividerBelow="false">
+
+    <io.legado.app.lib.prefs.Preference
+        android:icon="@drawable/ic_cfg_source"
+        android:key="bookSourceManage"
+        android:title="书源管理"
+        app:iconSpaceReserved="false" />
+				
+		<io.legado.app.lib.prefs.Preference
+    android:icon="@drawable/ic_history"
+    android:key="readRecord"
+    android:title="阅读统计"
+    app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
+        android:icon="@drawable/ic_cfg_backup"
+        android:key="web_dav_setting"
+        android:title="备份配置"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
+        android:icon="@drawable/ic_cfg_other"
+        android:key="setting"
+        android:title="其他配置"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
+        android:icon="@drawable/ic_cfg_about"
+        android:key="about"
+        android:title="关于软件"
+        app:iconSpaceReserved="false" />
+
+    <io.legado.app.lib.prefs.Preference
+        android:icon="@drawable/ic_exit"
+        android:key="exit"
+        android:title="退出应用"
+        app:iconSpaceReserved="false" />
+
+</androidx.preference.PreferenceScreen>

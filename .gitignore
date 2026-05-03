@@ -1,0 +1,15 @@
+# Android
+*.iml
+.gradle
+build/
+app/build/
+*/build/
+local.properties
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.bak
+*.log
+.DS_Store

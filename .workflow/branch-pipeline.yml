@@ -1,0 +1,47 @@
+version: '1.0'
+name: branch-pipeline
+displayName: BranchPipeline
+triggers:
+  trigger: auto
+  push:
+    branches:
+      include:
+        - .*
+      exclude:
+        - master
+stages:
+  - name: compile
+    displayName: 编译
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: build@gradle
+        name: build_gradle
+        displayName: Gradle 构建
+        jdkVersion: '17'
+        gradleVersion: 4.4
+        commands:
+          - chmod +x gradlew
+          - ./gradlew clean assembleRelease --no-daemon -x test
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - app/build/outputs/apk/release/*.apk
+        strategy: {}
+      - step: publish@general_artifacts
+        name: publish_general_artifacts
+        displayName: 上传制品
+        dependArtifact: BUILD_ARTIFACT
+        artifactName: output
+        dependsOn: build_gradle
+  - name: release
+    displayName: 发布
+    strategy: naturally
+    trigger: auto
+    steps:
+      - step: publish@release_artifacts
+        name: publish_release_artifacts
+        displayName: 发布
+        dependArtifact: output
+        version: 1.0.0.0
+        autoIncrement: true
