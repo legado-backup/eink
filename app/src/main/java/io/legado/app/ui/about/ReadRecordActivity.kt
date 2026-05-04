@@ -169,9 +169,6 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
         // 所有文字强制黑色
         binding.tvRecordDate.setTextColor(BLACK_TEXT)
         binding.tvRecordDateHint.setTextColor(BLACK_TEXT)
-        binding.tvHeatmapMonthStart.setTextColor(BLACK_TEXT)
-        binding.tvHeatmapMonthCenter.setTextColor(BLACK_TEXT)
-        binding.tvHeatmapMonthEnd.setTextColor(BLACK_TEXT)
         binding.tvHeatmapEmpty.setTextColor(BLACK_TEXT)
         binding.tvRecentBooksEmpty.setTextColor(BLACK_TEXT)
         binding.tvDailyRecordsEmpty.setTextColor(BLACK_TEXT)
@@ -214,9 +211,6 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
         val centerDate = dashboard.heatmapCells.getOrNull(dashboard.heatmapCells.size / 2)?.date
             ?: dashboard.today
         val endDate = dashboard.heatmapCells.lastOrNull()?.date ?: dashboard.today
-        binding.tvHeatmapMonthStart.text = startDate.format(monthFormatter)
-        binding.tvHeatmapMonthCenter.text = centerDate.format(monthFormatter)
-        binding.tvHeatmapMonthEnd.text = endDate.format(monthFormatter)
         binding.tvHeatmapEmpty.isVisible = !dashboard.hasDailyStats
 
         renderRecentBooks(dashboard.recentBooks)

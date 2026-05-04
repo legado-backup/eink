@@ -75,7 +75,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         Paint().apply {
             isAntiAlias = true
             isDither = true
-            // 删掉不存在的 filterBitmap = true 这行，修复编译报错
+            
         }
     }
 

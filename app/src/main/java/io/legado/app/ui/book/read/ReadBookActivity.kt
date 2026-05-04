@@ -1,5 +1,11 @@
 package io.legado.app.ui.book.read
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -145,12 +151,6 @@ import androidx.lifecycle.Lifecycle
 import com.script.rhino.runScriptWithContext
 import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.ui.login.SourceLoginJsExtensions
-// 阅读统计精准计时
-private var readStartTime: Long = 0L
-// 定时心跳任务
-private var recordHeartJob: Job? = null
-// 最小有效阅读时长 10秒过滤误点
-private val minValidReadTime = 10000L
 
 /**
  * 阅读界面
@@ -170,7 +170,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     AutoReadDialog.CallBack,
     TxtTocRuleDialog.CallBack,
     ColorPickerDialogListener,
-    LayoutProgressListener {
+    LayoutProgressListener,
+    SensorEventListener {
 
     private val tocActivity =
         registerForActivityResult(TocActivityResult()) {
@@ -272,6 +273,18 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
     private var justInitData: Boolean = false
     private var syncDialog: AlertDialog? = null
+    
+    // 加速度计晃动翻页
+private lateinit var sensorManager: SensorManager
+private var accelSensor: Sensor? = null
+// 灵敏：轻晃就触发
+private val shakeSensitivity = 3.2f
+private var lastRawX = 0f
+private var lastShakeTime = 0L
+// 锁死1.5秒，晃一次只翻一页
+private val shakeCoolDown = 1500L
+// 翻页标记，防止页面回弹、连续触发
+private var isShakeTurnPage = false
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -348,49 +361,48 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
-    override fun onResume() {
-        super.onResume()
-        readStartTime = System.currentTimeMillis()
-recordHeartJob?.cancel()
-recordHeartJob = lifecycleScope.launch(Dispatchers.IO) {
-    while (true) {
-        delay(30000)
-        saveReadRecord(false)
-    }
-}
-        ReadBook.readStartTime = System.currentTimeMillis()
-        if (bookChanged) {
-            bookChanged = false
-            ReadBook.callBack = this
-            viewModel.initData(intent)
-            justInitData = true
-        } else {
-            //web端阅读时，app处于阅读界面，本地记录会覆盖web保存的进度，在此处恢复
-            ReadBook.webBookProgress?.let {
-                ReadBook.setProgress(it)
-                ReadBook.webBookProgress = null
-            }
-        }
-        upSystemUiVisibility()
-        registerReceiver(timeBatteryReceiver, timeBatteryReceiver.filter)
-        binding.readView.upTime()
-        screenOffTimerStart()
-        // 网络监听，当从无网切换到网络环境时同步进度（注意注册的同时就会收到监听，因此界面激活时无需重复执行同步操作）
-        networkChangedListener.register()
-        networkChangedListener.onNetworkChanged = {
-            // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
-            if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
-                ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
-            }
-        }
+override fun onResume() {
+    super.onResume()
+    // 初始化加速度计晃动翻页
+    sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    accelSensor?.let {
+        sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
     }
 
+    if (bookChanged) {
+        bookChanged = false
+        ReadBook.callBack = this
+        viewModel.initData(intent)
+        justInitData = true
+    } else {
+        ReadBook.webBookProgress?.let {
+            ReadBook.setProgress(it)
+            ReadBook.webBookProgress = null
+        }
+    }
+    upSystemUiVisibility()
+    registerReceiver(timeBatteryReceiver, timeBatteryReceiver.filter)
+    binding.readView.upTime()
+    screenOffTimerStart()
+    networkChangedListener.register()
+    networkChangedListener.onNetworkChanged = {
+        if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
+            ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
+        }
+    }
+    initReadTimer()
+}
+
     override fun onPause() {
+    // 注销传感器
+    sensorManager.unregisterListener(this)
+    
+    stopReadTimer()
     super.onPause()
     autoPageStop()
     backupJob?.cancel()
     recordHeartJob?.cancel()
-saveReadRecord(true)
     ReadBook.saveRead()
     ReadBook.cancelPreDownloadTask()
     unregisterReceiver(timeBatteryReceiver)
@@ -407,8 +419,6 @@ saveReadRecord(true)
     }
     justInitData = false
     networkChangedListener.unRegister()
-
-    
 }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
@@ -1873,11 +1883,41 @@ saveReadRecord(true)
         const val RESULT_DELETED = 100
     }
     
-    // 统一保存阅读时长统计
-private fun saveReadRecord(isLeave: Boolean) {
+private var readStartTime: Long = 0L
+private var lastRecordTime: Long = 0L
+private var recordHeartJob: Job? = null
+private val minValidReadTime = 10000L       // 最小有效统计时长 10秒
+private val heartInterval = 60000L           // 每分钟心跳保存一次
+
+/** 进入阅读页初始化计时 */
+private fun initReadTimer() {
+    val now = System.currentTimeMillis()
+    readStartTime = now
+    lastRecordTime = now
+    startRecordHeartJob()
+}
+
+/** 启动定时心跳任务 每分钟自动保存时长 */
+private fun startRecordHeartJob() {
+    recordHeartJob?.cancel()
+    recordHeartJob = lifecycleScope.launch(Dispatchers.IO) {
+        while (isActive) {
+            delay(heartInterval)
+            saveReadRecord()
+        }
+    }
+}
+
+/** 停止计时并立即保存最后一段时长 */
+private fun stopReadTimer() {
+    recordHeartJob?.cancel()
+    saveReadRecord()
+}
+
+/** 保存当日阅读时长记录 */
+private fun saveReadRecord() {
     val nowTime = System.currentTimeMillis()
-    val spendTime = nowTime - readStartTime
-    // 小于10秒不统计，过滤误点
+    val spendTime = nowTime - lastRecordTime
     if (spendTime < minValidReadTime) return
 
     lifecycleScope.launch(Dispatchers.IO) {
@@ -1895,7 +1935,41 @@ private fun saveReadRecord(isLeave: Boolean) {
             todayRecord.updatedAt = nowTime
             appDb.readRecordDailyDao.insert(todayRecord)
         }
+        lastRecordTime = nowTime
     }
 }
+
+
+override fun onSensorChanged(event: SensorEvent?) {
+    // 新增：开关关闭直接不执行晃动翻页
+    if (!getPrefBoolean("shake_turn_page", false)) return
+
+    event ?: return
+    if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+
+    val now = System.currentTimeMillis()
+    if (now - lastShakeTime < shakeCoolDown) return
+    if (isShakeTurnPage) return
+
+    val x = event.values[0]
+    val deltaX = kotlin.math.abs(x - lastRawX)
+
+    if (deltaX > shakeSensitivity) {
+        lastShakeTime = now
+        isShakeTurnPage = true
+        binding.readView.pageDelegate?.isCancel = false
+
+        // 直接调用原生翻页入口，完全复用按键/点击翻页的所有逻辑
+        binding.readView.pageDelegate?.keyTurnPage(PageDirection.NEXT)
+
+        lifecycleScope.launch(Dispatchers.Main) {
+            delay(700)
+            isShakeTurnPage = false
+        }
+    }
+    lastRawX = x
+}
+
+override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
 }

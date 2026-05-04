@@ -522,45 +522,19 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
     /**
-     * 更新翻页动画
-     */
-    fun upPageAnim(upRecorder: Boolean = false) {
-        isScroll = ReadBook.pageAnim() == 3
-        ChapterProvider.upLayout()
-        when (ReadBook.pageAnim()) {
-            PageAnim.coverPageAnim -> if (pageDelegate !is CoverPageDelegate) {
-                pageDelegate = CoverPageDelegate(this)
-            }
-
-            PageAnim.slidePageAnim -> if (pageDelegate !is SlidePageDelegate) {
-                pageDelegate = SlidePageDelegate(this)
-            }
-
-            PageAnim.simulationPageAnim -> if (pageDelegate !is SimulationPageDelegate) {
-                pageDelegate = SimulationPageDelegate(this)
-            }
-
-            PageAnim.scrollPageAnim -> if (pageDelegate !is ScrollPageDelegate) {
-                pageDelegate = ScrollPageDelegate(this)
-            }
-
-            else -> if (pageDelegate !is NoAnimPageDelegate) {
-                pageDelegate = NoAnimPageDelegate(this)
-            }
-        }
-        (pageDelegate as? ScrollPageDelegate)?.noAnim = AppConfig.noAnimScrollPage
-        if (upRecorder) {
-            (pageDelegate as? HorizontalPageDelegate)?.upRecorder()
-            autoPager.upRecorder()
-        }
-        pageDelegate?.setViewSize(width, height)
-        if (isScroll) {
-            curPage.setAutoPager(autoPager)
-        } else {
-            curPage.setAutoPager(null)
-        }
-        curPage.setIsScroll(isScroll)
+ * 更新翻页动画
+ */
+fun upPageAnim(upRecorder: Boolean = false) {
+    
+    isScroll = false
+    ChapterProvider.upLayout()
+    if (pageDelegate !is NoAnimPageDelegate) {
+        pageDelegate = NoAnimPageDelegate(this)
     }
+    pageDelegate?.setViewSize(width, height)
+    curPage.setAutoPager(null)
+    curPage.setIsScroll(false)
+}
 
     /**
      * 更新阅读内容
