@@ -13,7 +13,7 @@
         app:contentLayout="@layout/view_tab_layout_min"
         app:title="@string/bookshelf" />
 
-    <androidx.viewpager.widget.ViewPager
+    <io.legado.app.ui.main.bookshelf.style1.NoScrollViewPager
         android:id="@+id/view_pager_bookshelf"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

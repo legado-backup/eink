@@ -2,6 +2,14 @@
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <io.legado.app.lib.prefs.SwitchPreference
+        
+        android:key="shake_turn_page"
+        android:title="晃动翻页"
+        android:defaultValue="false"
+        app:iconSpaceReserved="false" />
+
+
     <io.legado.app.lib.prefs.NameListPreference
         android:defaultValue="0"
         android:entries="@array/screen_direction_title"

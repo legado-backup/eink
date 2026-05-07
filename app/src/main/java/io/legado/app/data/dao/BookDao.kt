@@ -28,11 +28,33 @@ interface BookDao {
             BookGroup.IdLocalNone -> flowLocalNoGroup()
             BookGroup.IdVideo -> flowVideo()
             BookGroup.IdError -> flowUpdateError()
+						// 加上这一行 未读分组
+            BookGroup.IdUnRead -> flowUnRead()
+						 BookGroup.IdReading -> flowReading()
+             BookGroup.IdReaded -> flowReaded()
+						
+						
+						
             else -> flowByUserGroup(groupId)
         }.map { list ->
             list.filterNot { it.isNotShelf }
         }
     }
+
+/**
+ * 未读分组：只显示阅读进度为0/无阅读记录的书籍
+ */
+
+@Query("SELECT * FROM books WHERE durChapterPos > 0 AND durChapterIndex < totalChapterNum - 1 order by durChapterTime desc")
+fun flowReading(): Flow<List<Book>>
+
+@Query("SELECT * FROM books WHERE durChapterIndex >= totalChapterNum - 1 order by durChapterTime desc")
+fun flowReaded(): Flow<List<Book>>
+
+
+
+@Query("SELECT * FROM books WHERE durChapterPos = 0 order by durChapterTime desc")
+fun flowUnRead(): Flow<List<Book>>
 
     @Query(
         """

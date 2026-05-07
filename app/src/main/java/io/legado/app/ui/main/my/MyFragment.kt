@@ -116,7 +116,10 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
             listView.setEdgeEffectColor(primaryColor)
-        }
+						
+           // 隐藏顶部分割线、去除上下渐变阴影
+    listView.overScrollMode = View.OVER_SCROLL_NEVER
+}
 
         override fun onResume() {
             super.onResume()

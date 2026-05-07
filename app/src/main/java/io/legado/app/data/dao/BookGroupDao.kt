@@ -35,6 +35,30 @@ interface BookGroupDao {
             or (groupId = -3 and exists (select 1 from books where type & ${BookType.audio} > 0))
             or (groupId = -6 and exists (select 1 from books where type & ${BookType.video} > 0))
             or (groupId = -11 and exists (select 1 from books where type & ${BookType.updateError} > 0))
+            
+            
+-- 未读：从未阅读过
+or (groupId = -7 and exists (
+    select 1 from books 
+    where totalChapterNum > 0 
+    and durChapterIndex = 0
+))
+
+-- 在读：有进度、没到最后一章
+or (groupId = -8 and exists (
+    select 1 from books 
+    where totalChapterNum > 0 
+    and durChapterIndex > 0 
+    and durChapterIndex < totalChapterNum - 1
+))
+
+-- 已读：到达或超过最后一章
+or (groupId = -9 and exists (
+    select 1 from books 
+    where totalChapterNum > 0 
+    and durChapterIndex >= totalChapterNum - 1
+))
+            
             or (groupId = -4 
                 and exists (
                     select 1 from books 

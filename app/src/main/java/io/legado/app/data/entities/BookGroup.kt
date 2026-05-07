@@ -37,6 +37,9 @@ data class BookGroup(
         const val IdNetNone = -4L
         const val IdLocalNone = -5L
         const val IdVideo = -6L
+        const val IdUnRead = -7L
+				const val IdReading = -8L
+        const val IdReaded = -9L
         const val IdError = -11L
     }
 
@@ -48,6 +51,10 @@ data class BookGroup(
             IdNetNone -> "$groupName(${context.getString(R.string.net_no_group)})"
             IdLocalNone -> "$groupName(${context.getString(R.string.local_no_group)})"
             IdVideo -> "$groupName(${context.getString(R.string.video)})"
+            IdUnRead -> context.getString(R.string.unread_book)
+						 // 新增文字映射
+            IdReading -> context.getString(R.string.reading_book)
+            IdReaded -> context.getString(R.string.readed_book)
             IdError -> "$groupName(${context.getString(R.string.update_book_fail)})"
             else -> groupName
         }

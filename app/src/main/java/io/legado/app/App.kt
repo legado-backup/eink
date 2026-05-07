@@ -1,5 +1,7 @@
 package io.legado.app
 
+import io.legado.app.data.dao.BookGroupDao
+import io.legado.app.data.entities.BookGroup
 import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
@@ -118,11 +120,43 @@ class App : Application() {
                 2 -> ChineseUtils.preLoad(true, TransType.SIMPLE_TO_TRADITIONAL)
             }
             //调整排序序号
-            SourceHelp.adjustSortNumber()
-            //同步阅读记录
-            if (AppConfig.syncBookProgress) {
-                AppWebDav.downloadAllBookProgress()
-            }
+SourceHelp.adjustSortNumber()
+
+// ========== 初始化 未读、在读、已读 虚拟分组 ==========
+
+appDb.bookGroupDao.insert(
+    BookGroup(
+        groupId = -1,
+        groupName = "全部",
+        order = -9999,
+        show = true
+    ),
+    BookGroup(
+        groupId = BookGroup.IdUnRead,
+        groupName = "未读",
+        order = -100,
+        show = true
+    ),
+    BookGroup(
+        groupId = BookGroup.IdReading,
+        groupName = "在读",
+        order = -99,
+        show = true
+    ),
+    BookGroup(
+        groupId = BookGroup.IdReaded,
+        groupName = "已读",
+        order = -98,
+        show = true
+    )
+)
+// ==============================================
+
+
+//同步阅读记录
+if (AppConfig.syncBookProgress) {
+    AppWebDav.downloadAllBookProgress()
+}
         }
     }
 

@@ -124,6 +124,11 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvFind.setEdgeEffectColor(primaryColor)
         binding.rvFind.layoutManager = linearLayoutManager
         binding.rvFind.adapter = adapter
+				
+				   // 隐藏顶部标题栏下方分割线、去掉渐变阴影
+    binding.rvFind.overScrollMode = RecyclerView.OVER_SCROLL_NEVER
+    binding.rvFind.itemAnimator = null
+				
         adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
                 super.onItemRangeInserted(positionStart, itemCount)

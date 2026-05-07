@@ -6,7 +6,9 @@
     <string name="app_name_s" translatable="false">LegadoPlus</string>
     <string name="receiving_shared_label">Legado·search</string>
     <string name="tip_perm_request_storage">Legado needs storage access to find and read books. please go "App Settings" to allow "Storage permission".</string>
-
+<string name="unread_book">未读</string>
+<string name="reading_book">在读</string>
+<string name="readed_book">已读</string>
     <!--Other-->
     <string name="menu_backup">Home</string>
     <string name="menu_restore">Restore</string>

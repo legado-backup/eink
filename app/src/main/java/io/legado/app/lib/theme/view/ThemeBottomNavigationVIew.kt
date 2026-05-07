@@ -2,6 +2,7 @@ package io.legado.app.lib.theme.view
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -28,8 +29,13 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
         if (transparentNavBar) {
             setBackgroundColor(Color.TRANSPARENT)
         } else {
-            setBackgroundColor(bgColor)
-            elevation = context.elevation
+            val cardBg = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                setStroke(1, Color.BLACK)
+                cornerRadius = 18f
+            }
+            background = cardBg
+            elevation = 0f
         }
         val textIsDark = ColorUtils.isColorLight(bgColor)
         val textColor = context.getSecondaryTextColor(textIsDark)
@@ -48,9 +54,7 @@ class ThemeBottomNavigationVIew(context: Context, attrs: AttributeSet) :
     }
 
     fun addBadgeView(index: Int): BadgeView {
-        //获取底部菜单view
         val menuView = getChildAt(0) as ViewGroup
-        //获取第index个itemView
         val itemView = menuView.getChildAt(index) as ViewGroup
         val badgeBinding = ViewNavigationBadgeBinding.inflate(LayoutInflater.from(context))
         itemView.addView(badgeBinding.root)

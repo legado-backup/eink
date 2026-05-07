@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.read.page
 
+import android.os.Build
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -78,17 +79,33 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
             
         }
     }
+		
+		
+// 文字专用抗锯齿画笔 墨水屏纸质书质感
+val textAntiAliasPaint by lazy {
+    Paint().apply {
+        isAntiAlias = true
+        isDither = true
+        isSubpixelText = true
+        
+        
+    }
+}
 
     init {
-        // ===== 墨水屏全局渲染优化 =====
-        setLayerType(LAYER_TYPE_SOFTWARE, null)
-        elevation = 0f
-        translationZ = 0f
-        isDrawingCacheEnabled = false
-        setWillNotDraw(false)
+    // ===== 墨水屏全局渲染+文字抗锯齿终极优化 =====
+    setLayerType(LAYER_TYPE_SOFTWARE, null)
+    elevation = 0f
+    translationZ = 0f
+    isDrawingCacheEnabled = true
+    setWillNotDraw(false)
 
-        callBack = activity as CallBack
-    }
+    // 全局强制文字抗锯齿
+    textAntiAliasPaint.isAntiAlias = true
+    textAntiAliasPaint.isSubpixelText = true
+
+    callBack = activity as CallBack
+}
 
     /**
      * 设置内容
@@ -111,6 +128,10 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
     }
 
     override fun onDraw(canvas: Canvas) {
+		// 强制全局文字抗锯齿
+textAntiAliasPaint.isAntiAlias = true
+textAntiAliasPaint.isSubpixelText = true
+canvas.save()
         super.onDraw(canvas)
         autoPager?.onDraw(canvas)
         if (longScreenshot) {
@@ -119,6 +140,7 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
         check(!visibleRect.isEmpty) { "visibleRect 为空" }
         canvas.clipRect(visibleRect)
         drawPage(canvas)
+				    canvas.restore()
     }
 
     /**

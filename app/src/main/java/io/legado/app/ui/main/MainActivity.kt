@@ -2,6 +2,7 @@
 
 package io.legado.app.ui.main
 
+
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.MenuItem
@@ -189,22 +190,42 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
-    private fun initView() = binding.run {
-        viewPagerMain.setEdgeEffectColor(primaryColor)
-        viewPagerMain.offscreenPageLimit = 3
-        viewPagerMain.adapter = adapter
-        viewPagerMain.addOnPageChangeListener(PageChangeCallback())
-        bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
-        bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
-        if (AppConfig.isEInkMode) {
-            bottomNavigationView.setBackgroundResource(R.drawable.bg_eink_border_top)
-        }
-        bottomNavigationView.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
-            val height = windowInsets.navigationBarHeight
-            view.bottomPadding = height
-            windowInsets.inset(0, 0, 0, height)
+    
+
+private fun initView() = binding.run {
+    viewPagerMain.setEdgeEffectColor(primaryColor)
+    viewPagerMain.offscreenPageLimit = 3
+    viewPagerMain.adapter = adapter
+    viewPagerMain.addOnPageChangeListener(PageChangeCallback())
+    bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
+    bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
+
+    // 1. 移除边框背景
+    if (AppConfig.isEInkMode) {
+        // 直接设置透明背景，去掉自带的顶边黑框
+        bottomNavigationView.background = null
+    }
+
+    // 2. 移除 elevation（阴影和分割线的来源）
+    bottomNavigationView.elevation = 0f
+
+    // 3. 手动遍历移除内部所有子View的分割线背景
+    for (i in 0 until bottomNavigationView.childCount) {
+        val child = bottomNavigationView.getChildAt(i)
+        if (child is com.google.android.material.bottomnavigation.BottomNavigationMenuView) {
+            child.background = null
+            child.setPadding(0, 0, 0, 0)
         }
     }
+
+    bottomNavigationView.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
+        val height = windowInsets.navigationBarHeight
+        view.bottomPadding = height
+        windowInsets.inset(0, 0, 0, height)
+    }
+}
+
+    
 
     /**
      * 用户隐私与协议

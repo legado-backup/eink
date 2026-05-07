@@ -10,18 +10,11 @@
         android:title="书源管理"
         app:iconSpaceReserved="false" />
 				
-	<io.legado.app.lib.prefs.Preference
+				
+<io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_history"
         android:key="readRecord"
         android:title="阅读统计"
-        app:iconSpaceReserved="false" />
-
-    <!-- 晃动翻页 带图标 -->
-    <io.legado.app.lib.prefs.SwitchPreference
-        android:icon="@drawable/ic_cfg_theme"
-        android:key="shake_turn_page"
-        android:title="晃动翻页"
-        android:defaultValue="false"
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference

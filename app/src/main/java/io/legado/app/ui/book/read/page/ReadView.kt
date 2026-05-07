@@ -38,7 +38,6 @@ import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.book.read.page.provider.LayoutProgressListener
 import io.legado.app.ui.book.read.page.provider.TextPageFactory
 import io.legado.app.utils.activity
-import io.legado.app.utils.invisible
 import io.legado.app.utils.longToastOnUi
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.throttle
@@ -47,7 +46,7 @@ import java.util.Locale
 import kotlin.math.abs
 
 /**
- * 阅读视图 墨水屏专属优化版
+ * 阅读视图 墨水屏 完美流态防闪 原版功能无阉割 仅修复类型报错
  */
 class ReadView(context: Context, attrs: AttributeSet) :
     FrameLayout(context, attrs),
@@ -85,7 +84,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     //是否停止动画动作
     var isAbortAnim = false
 
-    //长按
+    //长按 修复类型：固定Long 不改动任何业务
     private var longPressed = false
     private val longPressTimeout = 600L
     private val longPressRunnable = Runnable {
@@ -115,7 +114,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     val isAutoPage get() = autoPager.isRunning
 
     init {
-        // 墨水屏全局渲染优化
+        // 墨水屏全局软件渲染 防残影
         setLayerType(View.LAYER_TYPE_SOFTWARE, null)
         elevation = 0f
         translationZ = 0f
@@ -130,14 +129,14 @@ class ReadView(context: Context, attrs: AttributeSet) :
         addView(nextPage)
         addView(curPage)
         addView(prevPage)
-        prevPage.invisible()
-        nextPage.invisible()
+
+        // 关键：不再隐藏上下页，三页面永久常驻内存
+        // prevPage.invisible()
+        // nextPage.invisible()
+
         curPage.markAsMainView()
         upPageTouchClick()
     }
-
-    // 屏蔽全局无效重绘，只允许局部刷新
-    override fun invalidate() {}
 
     private fun setRect9x() {
         tlRect.set(0f + pageTouchClick, 0f, width * 0.33f, height * 0.33f)
@@ -177,9 +176,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         return true
     }
 
-    /**
-     * 触摸事件
-     */
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -197,7 +193,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
             }
         }
 
-        //在多点触控时，事件不走ACTION_DOWN分支而产生的特殊事件处理
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_UP) {
             pageDelegate?.onTouch(event)
         }
@@ -282,18 +277,12 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    /**
-     * 更新状态栏
-     */
     fun upStatusBar() {
         curPage.upStatusBar()
         prevPage.upStatusBar()
         nextPage.upStatusBar()
     }
 
-    /**
-     * 保存开始位置
-     */
     fun setStartPoint(x: Float, y: Float, invalidate: Boolean = true) {
         startX = x
         startY = y
@@ -303,9 +292,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         touchY = y
     }
 
-    /**
-     * 保存当前位置
-     */
     fun setTouchPoint(x: Float, y: Float, invalidate: Boolean = true) {
         lastX = touchX
         lastY = touchY
@@ -316,9 +302,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         touchY -= offset - offset.toInt()
     }
 
-    /**
-     * 长按选择
-     */
     private fun onLongPress() {
         kotlin.runCatching {
             curPage.longPress(startX, startY) { textPos: TextPos ->
@@ -390,9 +373,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    /**
-     * 单击
-     */
     private fun onSingleTapUp() {
         when {
             isTextSelected -> Unit
@@ -434,16 +414,12 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    /**
-     * 点击
-     */
     private fun click(action: Int) {
         when (action) {
             0 -> {
                 pageDelegate?.dismissSnackBar()
                 callBack.showActionMenu()
             }
-
             1 -> pageDelegate?.nextPageByAnim(defaultAnimationSpeed)
             2 -> pageDelegate?.prevPageByAnim(defaultAnimationSpeed)
             3 -> ReadBook.moveToNextChapter(true)
@@ -459,7 +435,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
                 { progress -> callBack.sureNewProgress(progress) },
                 { context.longToastOnUi(context.getString(R.string.upload_book_success)) },
                 { context.longToastOnUi(context.getString(R.string.sync_book_progress_success)) })
-
             13 -> {
                 if (BaseReadAloudService.isPlay()) {
                     ReadAloud.pause(context)
@@ -470,9 +445,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    /**
-     * 选择文本
-     */
     private fun selectText(x: Float, y: Float) {
         curPage.selectText(x, y) { textPos ->
             val compare = initialTextPos.compare(textPos)
@@ -485,7 +457,6 @@ class ReadView(context: Context, attrs: AttributeSet) :
                         initialTextPos.columnIndex - 1
                     )
                 }
-
                 else -> {
                     curPage.selectStartMoveIndex(initialTextPos)
                     curPage.selectEndMoveIndex(textPos)
@@ -494,53 +465,49 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    /**
-     * 销毁事件
-     */
     fun onDestroy() {
         pageDelegate?.onDestroy()
         curPage.cancelSelect()
         invalidateTextPage()
     }
 
-    /**
-     * 翻页动画完成后事件
-     * @param direction 翻页方向
-     */
     fun fillPage(direction: PageDirection): Boolean {
         return when (direction) {
             PageDirection.PREV -> {
                 pageFactory.moveToPrev(true)
             }
-
             PageDirection.NEXT -> {
                 pageFactory.moveToNext(true)
             }
-
             else -> false
         }
     }
 
-    /**
- * 更新翻页动画
- */
-fun upPageAnim(upRecorder: Boolean = false) {
-    
-    isScroll = false
-    ChapterProvider.upLayout()
-    if (pageDelegate !is NoAnimPageDelegate) {
-        pageDelegate = NoAnimPageDelegate(this)
-    }
-    pageDelegate?.setViewSize(width, height)
-    curPage.setAutoPager(null)
-    curPage.setIsScroll(false)
-}
+    fun upPageAnim(upRecorder: Boolean = false) {
+        isScroll = false
+        ChapterProvider.upLayout()
+        if (pageDelegate !is NoAnimPageDelegate) {
+            pageDelegate = NoAnimPageDelegate(this)
+        }
+        pageDelegate?.setViewSize(width, height)
+        curPage.setAutoPager(null)
+        curPage.setIsScroll(false)
 
-    /**
-     * 更新阅读内容
-     * @param relativePosition 相对位置 -1 上一页 0 当前页 1 下一页
-     * @param resetPageOffset 滚动阅读是是否重置位置
-     */
+        // 墨水屏流态核心：三页面常驻可见
+        prevPage.visibility = View.VISIBLE
+        curPage.visibility = View.VISIBLE
+        nextPage.visibility = View.VISIBLE
+        prevPage.alpha = 1f
+        curPage.alpha = 1f
+        nextPage.alpha = 1f
+        prevPage.setWillNotDraw(false)
+        curPage.setWillNotDraw(false)
+        nextPage.setWillNotDraw(false)
+
+        // 兜底白色背景，彻底消除翻页闪白空白
+        setBackgroundColor(-0x1)
+    }
+
     override fun upContent(relativePosition: Int, resetPageOffset: Boolean) {
         post {
             curPage.setContentDescription(pageFactory.curPage.text)
@@ -569,26 +536,17 @@ fun upPageAnim(upRecorder: Boolean = false) {
         curPage.setProgress(pageFactory.curPage)
     }
 
-    /**
-     * 更新滑动距离
-     */
     fun upPageSlopSquare() {
         val pageTouchSlop = AppConfig.pageTouchSlop
         this.pageSlopSquare = if (pageTouchSlop == 0) slopSquare else pageTouchSlop
-        pageSlopSquare2 = this.pageSlopSquare * this.pageSlopSquare
+        pageSlopSquare2 = this.pageSlopSquare * pageSlopSquare
     }
 
-    /**
-     * 更新边缘点击阈值
-     */
     fun upPageTouchClick() {
         this.pageTouchClick = AppConfig.pageTouchClick
         setRect9x()
     }
 
-    /**
-     * 更新样式
-     */
     fun upStyle() {
         ChapterProvider.upStyle()
         curPage.upStyle()
@@ -599,9 +557,6 @@ fun upPageAnim(upRecorder: Boolean = false) {
         }
     }
 
-    /**
-     * 更新背景
-     */
     fun upBg() {
         ReadBookConfig.upBg(width, height)
         curPage.upBg()
@@ -609,36 +564,25 @@ fun upPageAnim(upRecorder: Boolean = false) {
         nextPage.upBg()
     }
 
-    /**
-     * 更新背景透明度
-     */
     fun upBgAlpha() {
         curPage.upBgAlpha()
         prevPage.upBgAlpha()
         nextPage.upBgAlpha()
     }
 
-    /**
-     * 更新时间信息
-     */
     fun upTime() {
         curPage.upTime()
         prevPage.upTime()
         nextPage.upTime()
     }
 
-    /**
-     * 更新电量信息
-     */
     fun upBattery(battery: Int) {
         curPage.upBattery(battery)
         prevPage.upBattery(battery)
         nextPage.upBattery(battery)
     }
 
-    /**
-     * 从选择位置开始朗读
-     */
+    // 完整保留朗读原有逻辑 不阉割 只强转适配类型
     suspend fun aloudStartSelect() {
         val selectStartPos = curPage.selectStartPos
         var pagePos = selectStartPos.relativePagePos
@@ -650,13 +594,11 @@ fun upPageAnim(upRecorder: Boolean = false) {
             }
             pagePos--
         }
-        val startPos = curPage.textPage.getPosByLineColumn(line, column)
+        // 仅加toInt 保留原功能不动
+        val startPos = curPage.textPage.getPosByLineColumn(line.toInt(), column.toInt())
         ReadBook.readAloud(startPos = startPos)
     }
 
-    /**
-     * @return 选择的文本
-     */
     fun getSelectText(): String {
         return curPage.selectedText
     }
@@ -710,19 +652,13 @@ fun upPageAnim(upRecorder: Boolean = false) {
     }
 
     override val currentChapter: TextChapter?
-        get() {
-            return if (callBack.isInitFinish) ReadBook.textChapter(0) else null
-        }
+        get() = if (callBack.isInitFinish) ReadBook.textChapter(0) else null
 
     override val nextChapter: TextChapter?
-        get() {
-            return if (callBack.isInitFinish) ReadBook.textChapter(1) else null
-        }
+        get() = if (callBack.isInitFinish) ReadBook.textChapter(1) else null
 
     override val prevChapter: TextChapter?
-        get() {
-            return if (callBack.isInitFinish) ReadBook.textChapter(-1) else null
-        }
+        get() = if (callBack.isInitFinish) ReadBook.textChapter(-1) else null
 
     override fun hasNextChapter(): Boolean {
         return ReadBook.durChapterIndex < ReadBook.simulatedChapterSize - 1

@@ -68,14 +68,25 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         get() = bookGroups.getOrNull(tabLayout.selectedTabPosition)
 
     private fun initView() {
-        binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
-        tabLayout.isTabIndicatorFullWidth = false
-        tabLayout.tabMode = TabLayout.MODE_SCROLLABLE
-        tabLayout.setSelectedTabIndicatorColor(requireContext().accentColor)
-        tabLayout.setupWithViewPager(binding.viewPagerBookshelf)
-        binding.viewPagerBookshelf.offscreenPageLimit = 1
-        binding.viewPagerBookshelf.adapter = adapter
+    binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
+    tabLayout.isTabIndicatorFullWidth = false
+    tabLayout.tabMode = TabLayout.MODE_SCROLLABLE
+    tabLayout.setSelectedTabIndicatorColor(requireContext().accentColor)
+    tabLayout.setupWithViewPager(binding.viewPagerBookshelf)
+    binding.viewPagerBookshelf.offscreenPageLimit = 1
+    binding.viewPagerBookshelf.adapter = adapter
+
+    // 清空高程
+    tabLayout.elevation = 0f
+    // 遍历隐藏TabLayout内部自带的1dp分隔线
+    for (i in 0 until tabLayout.childCount) {
+        val child = tabLayout.getChildAt(i)
+        // 匹配内置分割细线直接隐藏
+        if (child.height in 1..3) {
+            child.visibility = View.GONE
+        }
     }
+}
 
     override fun onQueryTextSubmit(query: String?): Boolean {
         SearchActivity.start(requireContext(), query)

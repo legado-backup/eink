@@ -15,6 +15,9 @@
         android:id="@+id/menu_rss"
         android:icon="@drawable/ic_bottom_rss_feed"
         android:title="@string/rss" />
+
+    
+
     <item
         android:id="@+id/menu_my_config"
         android:icon="@drawable/ic_bottom_person"

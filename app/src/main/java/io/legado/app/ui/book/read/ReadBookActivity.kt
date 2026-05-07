@@ -278,11 +278,11 @@ class ReadBookActivity : BaseReadBookActivity(),
 private lateinit var sensorManager: SensorManager
 private var accelSensor: Sensor? = null
 // 灵敏：轻晃就触发
-private val shakeSensitivity = 3.2f
+private val shakeSensitivity = 3.15f
 private var lastRawX = 0f
 private var lastShakeTime = 0L
 // 锁死1.5秒，晃一次只翻一页
-private val shakeCoolDown = 1500L
+private val shakeCoolDown = 1350L
 // 翻页标记，防止页面回弹、连续触发
 private var isShakeTurnPage = false
 
