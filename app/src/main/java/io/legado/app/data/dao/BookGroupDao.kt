@@ -127,4 +127,9 @@ or (groupId = -9 and exists (
         }
         return id
     }
+		
+		
+		@Query("SELECT EXISTS(SELECT * FROM book_groups WHERE groupId = :groupId)")
+suspend fun existsGroup(groupId: Long): Boolean
+		
 }

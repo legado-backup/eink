@@ -122,34 +122,42 @@ class App : Application() {
             //调整排序序号
 SourceHelp.adjustSortNumber()
 
-// ========== 初始化 未读、在读、已读 虚拟分组 ==========
 
-appDb.bookGroupDao.insert(
-    BookGroup(
-        groupId = -1,
-        groupName = "全部",
-        order = -9999,
-        show = true
-    ),
-    BookGroup(
-        groupId = BookGroup.IdUnRead,
-        groupName = "未读",
-        order = -100,
-        show = true
-    ),
-    BookGroup(
-        groupId = BookGroup.IdReading,
-        groupName = "在读",
-        order = -99,
-        show = true
-    ),
-    BookGroup(
-        groupId = BookGroup.IdReaded,
-        groupName = "已读",
-        order = -98,
-        show = true
+// ========== 初始化 未读、在读、已读 虚拟分组 ==========
+val hasAll = appDb.bookGroupDao.existsGroup(-1)
+val hasUnRead = appDb.bookGroupDao.existsGroup(BookGroup.IdUnRead)
+val hasReading = appDb.bookGroupDao.existsGroup(BookGroup.IdReading)
+val hasReaded = appDb.bookGroupDao.existsGroup(BookGroup.IdReaded)
+
+if (!hasAll || !hasUnRead || !hasReading || !hasReaded) {
+    appDb.bookGroupDao.insert(
+        BookGroup(
+            groupId = -1,
+            groupName = "全部",
+            order = -9999,
+            show = true
+        ),
+        BookGroup(
+            groupId = BookGroup.IdUnRead,
+            groupName = "未读",
+            order = -100,
+            show = true
+        ),
+        BookGroup(
+            groupId = BookGroup.IdReading,
+            groupName = "在读",
+            order = -99,
+            show = true
+        ),
+        BookGroup(
+            groupId = BookGroup.IdReaded,
+            groupName = "已读",
+            order = -98,
+            show = true
+        )
     )
-)
+}
+
 // ==============================================
 
 

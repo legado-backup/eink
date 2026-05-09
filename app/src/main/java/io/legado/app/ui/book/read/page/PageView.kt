@@ -1,5 +1,8 @@
 package io.legado.app.ui.book.read.page
 
+
+import android.graphics.PaintFlagsDrawFilter
+import io.legado.app.ui.main.MainActivity
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.LayerDrawable
@@ -124,6 +127,22 @@ class PageView(context: Context) : FrameLayout(context) {
         upTime()
         upBattery(battery)
     }
+		
+		
+		override fun onDraw(canvas: android.graphics.Canvas) {
+    val mainActivity: MainActivity? = run {
+        var ctx = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is MainActivity) return@run ctx
+            ctx = ctx.baseContext
+        }
+        null
+    }
+    mainActivity?.globalAaFilter?.let {
+        canvas.setDrawFilter(it)
+    }
+    super.onDraw(canvas)
+}
 
     /**
      * 显示状态栏时隐藏header

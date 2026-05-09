@@ -2,7 +2,8 @@
 
 package io.legado.app.ui.main
 
-
+import android.graphics.Paint
+import android.graphics.PaintFlagsDrawFilter
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.MenuItem
@@ -73,6 +74,12 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     BottomNavigationView.OnNavigationItemSelectedListener,
     BottomNavigationView.OnNavigationItemReselectedListener,
     MainViewModel.CallBack {
+		
+		// ==========墨水屏全局抗锯齿==========
+internal val globalAaFilter = PaintFlagsDrawFilter(
+    0,
+    Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
+)
 
     override val binding by viewBinding(ActivityMainBinding::inflate)
     override val viewModel by viewModels<MainViewModel>()
@@ -193,6 +200,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     
 
 private fun initView() = binding.run {
+
+
+
+
     viewPagerMain.setEdgeEffectColor(primaryColor)
     viewPagerMain.offscreenPageLimit = 3
     viewPagerMain.adapter = adapter
@@ -223,6 +234,8 @@ private fun initView() = binding.run {
         view.bottomPadding = height
         windowInsets.inset(0, 0, 0, height)
     }
+		
+		
 }
 
     

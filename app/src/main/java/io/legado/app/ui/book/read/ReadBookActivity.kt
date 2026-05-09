@@ -274,17 +274,45 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var justInitData: Boolean = false
     private var syncDialog: AlertDialog? = null
     
-    // 加速度计晃动翻页
+    // 倾斜回弹翻页-全自动基准校准
 private lateinit var sensorManager: SensorManager
 private var accelSensor: Sensor? = null
-// 灵敏：轻晃就触发
-private val shakeSensitivity = 3.15f
-private var lastRawX = 0f
-private var lastShakeTime = 0L
-// 锁死1.5秒，晃一次只翻一页
-private val shakeCoolDown = 1350L
-// 翻页标记，防止页面回弹、连续触发
+
+// 翻页动作锁：防止单次摆动重复触发翻页
 private var isShakeTurnPage = false
+
+// 基准校准相关配置
+private var baseTiltX = 0f
+private var stableDetectTime = 0L
+private val autoCalibrateStayMs = 2000L
+private val baseErrorRange = 0.8f
+
+// 倾斜触发阈值
+private val swingOutThreshold = 1.2f
+private val swingBackThreshold = 2.0f
+private val backTolerance = 1.8f
+
+// 状态机：左右倾斜统一归类，回弹均触发下一页
+private enum class TiltState {
+    IDLE,
+    TILT_SIDE
+}
+private var currentTiltState = TiltState.IDLE
+private var preSensorX = 0f
+
+/**
+ * 统一翻页入口：固定只触发下一页
+ */
+private fun triggerTurnPage() {
+    if (isShakeTurnPage) return
+    isShakeTurnPage = true
+    binding.readView.pageDelegate?.keyTurnPage(PageDirection.NEXT)
+    currentTiltState = TiltState.IDLE
+    lifecycleScope.launch(Dispatchers.Main) {
+        delay(1250)
+        isShakeTurnPage = false
+    }
+}
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -1940,34 +1968,68 @@ private fun saveReadRecord() {
 }
 
 
-override fun onSensorChanged(event: SensorEvent?) {
-    // 新增：开关关闭直接不执行晃动翻页
-    if (!getPrefBoolean("shake_turn_page", false)) return
+/**
+ * 统一翻页触发入口
+ * 自带短时锁定，避免连续误翻
+ */
+private fun triggerTurnPage(direction: PageDirection) {
+    if (isShakeTurnPage) return
+    isShakeTurnPage = true
+    // 调用项目原生翻页方法
+    binding.readView.pageDelegate?.keyTurnPage(direction)
+    // 重置倾斜状态为待机
+    currentTiltState = TiltState.IDLE
+    // 延时解锁防连击
+    lifecycleScope.launch(Dispatchers.Main) {
+        delay(700)
+        isShakeTurnPage = false
+    }
+}
 
+override fun onSensorChanged(event: SensorEvent?) {
+    if (!getPrefBoolean("shake_turn_page", false)) return
     event ?: return
     if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
 
+    val curX = event.values[0]
+    val angleWave = kotlin.math.abs(curX - preSensorX)
+
+    // 大幅度左右晃动直接拦截，不触发翻页
+    if (angleWave > baseErrorRange) {
+        stableDetectTime = 0L
+        preSensorX = curX
+        return
+    }
+
+    if (stableDetectTime == 0L) {
+        stableDetectTime = System.currentTimeMillis()
+    }
+
     val now = System.currentTimeMillis()
-    if (now - lastShakeTime < shakeCoolDown) return
-    if (isShakeTurnPage) return
+    // 静置自动重校准基准
+    if (now - stableDetectTime >= autoCalibrateStayMs) {
+        baseTiltX = curX
+        stableDetectTime = 0L
+        currentTiltState = TiltState.IDLE
+    }
 
-    val x = event.values[0]
-    val deltaX = kotlin.math.abs(x - lastRawX)
+    preSensorX = curX
+    val relativeOffset = curX - baseTiltX
 
-    if (deltaX > shakeSensitivity) {
-        lastShakeTime = now
-        isShakeTurnPage = true
-        binding.readView.pageDelegate?.isCancel = false
-
-        // 直接调用原生翻页入口，完全复用按键/点击翻页的所有逻辑
-        binding.readView.pageDelegate?.keyTurnPage(PageDirection.NEXT)
-
-        lifecycleScope.launch(Dispatchers.Main) {
-            delay(700)
-            isShakeTurnPage = false
+    when (currentTiltState) {
+        TiltState.IDLE -> {
+            // 左倾、右倾达到阈值都进入待回弹状态
+            if (relativeOffset > swingOutThreshold || relativeOffset < -swingOutThreshold) {
+                currentTiltState = TiltState.TILT_SIDE
+            }
+        }
+        TiltState.TILT_SIDE -> {
+            // 任意一侧倾斜回弹归位，触发下一页
+            if (kotlin.math.abs(relativeOffset) < swingBackThreshold + backTolerance) {
+                triggerTurnPage()
+            }
         }
     }
-    lastRawX = x
 }
 
 override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}

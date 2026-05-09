@@ -1,5 +1,8 @@
 package io.legado.app.ui.book.read.page
 
+
+import android.graphics.PaintFlagsDrawFilter
+import io.legado.app.ui.main.MainActivity
 import android.os.Build
 import android.content.Context
 import android.graphics.Canvas
@@ -87,8 +90,8 @@ val textAntiAliasPaint by lazy {
         isAntiAlias = true
         isDither = true
         isSubpixelText = true
-        
-        
+        isFilterBitmap = true
+        hinting = Paint.HINTING_ON
     }
 }
 
@@ -128,20 +131,33 @@ val textAntiAliasPaint by lazy {
     }
 
     override fun onDraw(canvas: Canvas) {
-		// 强制全局文字抗锯齿
-textAntiAliasPaint.isAntiAlias = true
-textAntiAliasPaint.isSubpixelText = true
-canvas.save()
-        super.onDraw(canvas)
-        autoPager?.onDraw(canvas)
-        if (longScreenshot) {
-            canvas.translate(0f, scrollY.toFloat())
-        }
-        check(!visibleRect.isEmpty) { "visibleRect 为空" }
-        canvas.clipRect(visibleRect)
-        drawPage(canvas)
-				    canvas.restore()
+    //绑定MainActivity全局抗锯齿滤镜
+    val mainActivity: MainActivity? = run {
+    var ctx = context
+    while (ctx is android.content.ContextWrapper) {
+        if (ctx is MainActivity) return@run ctx
+        ctx = ctx.baseContext
     }
+    null
+}
+    mainActivity?.globalAaFilter?.let {
+        canvas.setDrawFilter(it)
+    }
+
+    //以下是你的原生代码，无任何改动
+    textAntiAliasPaint.isAntiAlias = true
+    textAntiAliasPaint.isSubpixelText = true
+    canvas.save()
+    super.onDraw(canvas)
+    autoPager?.onDraw(canvas)
+    if (longScreenshot) {
+        canvas.translate(0f, scrollY.toFloat())
+    }
+    check(!visibleRect.isEmpty) { "visibleRect 为空" }
+    canvas.clipRect(visibleRect)
+    drawPage(canvas)
+    canvas.restore()
+}
 
     /**
      * 绘制页面
