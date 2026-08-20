@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+		    <io.legado.app.lib.prefs.SwitchPreference
+        android:key="ink_fast_turn"
+        android:title="减少闪屏"
+        android:defaultValue="true"
+        app:iconSpaceReserved="false"
+        app:isBottomBackground="true"/>
+		<io.legado.app.lib.prefs.NameListPreference
+    android:key="eink_mode"
+    android:title="模式选择"
+    android:entries="@array/eink_mode_name"
+    android:entryValues="@array/eink_mode_val"
+    app:iconSpaceReserved="false"
+    app:isBottomBackground="true"/>
 
     <io.legado.app.lib.prefs.SwitchPreference
         
@@ -182,7 +195,7 @@
         app:isBottomBackground="true" />
 
     <io.legado.app.lib.prefs.SwitchPreference
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="optimizeRender"
         android:title="@string/enable_optimize_render"
         app:iconSpaceReserved="false"

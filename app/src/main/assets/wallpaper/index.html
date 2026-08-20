@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>阅读账单</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #fff;
+            color: #000;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 主页面 */
+        .main { display: none; width: 100%; padding: 16px; box-sizing: border-box; }
+        .toolbar {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 16px auto;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            background: #fff;
+            color: #000;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn:active { background: #000; color: #fff; }
+        .btn-save { 
+            background: #fff; 
+            color: #000; 
+            border: 2px solid #000;
+            font-size: 16px;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-save:active { background: #000; color: #fff; }
+        .btn-save:active { background: #000; color: #fff; }
+
+        #canvasWrap {
+            display: flex;
+            justify-content: center;
+            overflow: auto;
+            max-height: 70vh;
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .panel {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 16px auto;
+            padding: 16px;
+            border: 2px solid #000;
+            border-radius: 12px;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            padding-left: 8px;
+        }
+        .row:last-child { margin-bottom: 0; }
+        .row label {
+            font-size: 14px;
+            font-weight: 600;
+            min-width: 60px;
+            white-space: nowrap;
+        }
+        .row input[type="text"] {
+            flex: 1;
+            padding: 8px 12px;
+            border: 2px solid #000;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+            color: #000;
+        }
+        .row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: #000;
+            border-radius: 2px;
+            outline: none;
+            margin-left: 12px;
+            margin-right: 12px;
+            padding: 0;
+            border: none;
+        }
+        .row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #000;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #000;
+        }
+        .row input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #000;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 1px #000;
+        }
+        .row span {
+            font-size: 13px;
+            color: #000;
+            min-width: 36px;
+            text-align: right;
+        }
+        .opts {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+        .opts label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: normal;
+            min-width: auto;
+            cursor: pointer;
+        }
+        .status {
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 主界面 -->
+    <div class="main" id="main" style="display:block;">
+        <!-- 控制面板 -->
+        <div class="panel" id="panel">
+            <div class="row">
+                <label>标题</label>
+                <input type="text" id="billTitle" value="阅读账单">
+            </div>
+            <div class="row">
+                <label>备注</label>
+                <input type="text" id="footerNote" value="我本愿将心向明月，奈何明月照沟渠。">
+            </div>
+            <div class="row">
+                <label>标题 <span id="titleVal">70</span></label>
+                <input type="range" id="titleSize" min="40" max="120" value="70">
+            </div>
+            <div class="row">
+                <label>正文 <span id="bodyVal">32</span></label>
+                <input type="range" id="bodySize" min="20" max="60" value="32">
+            </div>
+            <div class="row">
+                <label>圆角 <span id="radVal">16</span></label>
+                <input type="range" id="cardRadius" min="0" max="50" value="16">
+            </div>
+            <div class="row">
+                <label>边框 <span id="strVal">2</span></label>
+                <input type="range" id="strokeWidth" min="1" max="8" value="2">
+            </div>
+            <div class="row">
+                <label>图表</label>
+                <div class="opts">
+                    <label><input type="checkbox" id="showChart" checked> 趋势</label>
+                    <label><input type="radio" name="chartType" value="line" checked> 折线</label>
+                    <label><input type="radio" name="chartType" value="bar"> 柱状</label>
+                </div>
+            </div>
+
+        </div>
+
+      <div class="toolbar" style="display:flex;padding:0 0px;">
+    <button class="btn btn-save" id="btnPreview" style="flex:1;margin-right:16px;">预览壁纸</button>
+    <button class="btn btn-save" id="btnSave" style="flex:1;">保存壁纸</button>
+</div>
+        <div id="canvasWrap" style="display:none;">
+            <canvas id="cvs"></canvas>
+        </div>
+
+        <!-- 全屏预览层 -->
+        <div id="fullscreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:999;justify-content:center;align-items:center;cursor:pointer;" onclick="closeFullscreen()">
+            <img id="fsImg" style="max-width:90%;max-height:90%;object-fit:contain;">
+        </div>
+        <div class="status" id="status">等待数据...</div>
+    </div>
+
+<script>
+// ==================== 全局变量 ====================
+var BLACK = '#000000';
+var WHITE = '#FFFFFF';
+var W = 1080, H = 2400;
+var appData = null;
+var dataReady = false;
+
+// ==================== 工具函数 ====================
+function fmtTime(ms) {
+    var d = Math.floor(ms / 86400000);
+    var h = Math.floor(ms % 86400000 / 3600000);
+    var m = Math.floor(ms % 3600000 / 60000);
+    if (d > 0) return d + '天';
+    if (h > 0) return h + '小时';
+    if (m > 0) return m + '分钟';
+    return '0分钟';
+}
+
+function show(msg) {
+    var el = document.getElementById('status');
+    if (el) el.textContent = msg;
+}
+
+// ==================== 接收数据（兼容两种注入方式）====================
+function receiveData(d) {
+    console.log('收到数据');
+    if (!d || !d.books) {
+        show('数据格式错误');
+        return;
+    }
+    appData = d;
+    dataReady = true;
+    if (d.screenWidth) W = d.screenWidth;
+    if (d.screenHeight) H = d.screenHeight;
+
+    show('数据已同步 ' + W + 'x' + H);
+
+    // 立即绘制
+    try { 
+        draw(); 
+    } catch(e) { 
+        console.error('绘制错误:', e); 
+        show('绘制错误: ' + e.message); 
+    }
+}
+
+// 兼容 Kotlin 的调用方式
+window.onLegadoData = receiveData;
+window.receiveData = receiveData;
+
+// ==================== 绘图 ====================
+function draw() {
+    if (!appData) { show('无数据'); return; }
+    if (!appData.books || appData.books.length === 0) { show('无书籍数据'); return; }
+
+    var c = document.getElementById('cvs');
+    c.width = W; 
+    c.height = H;
+    var ctx = c.getContext('2d');
+    var s = function(v) { return v * (W / 1080); };
+
+    // 读取控制面板参数
+    var titleSize = parseInt(document.getElementById('titleSize').value);
+    var bodySize = parseInt(document.getElementById('bodySize').value);
+    var radius = parseInt(document.getElementById('cardRadius').value);
+    var stroke = parseInt(document.getElementById('strokeWidth').value);
+    var gap = 28; // 固定间距
+    var lineHeight = 1.5; // 固定行高
+    var showChart = document.getElementById('showChart').checked;
+    var billTitle = document.getElementById('billTitle').value || '阅读账单';
+    var footerNote = document.getElementById('footerNote').value || '我本愿将心向明月，奈何明月照沟渠。';
+
+    // 背景
+    ctx.fillStyle = WHITE;
+    ctx.fillRect(0, 0, W, H);
+
+    // 卡片绘制
+    function card(x, y, w, h, r) {
+        ctx.fillStyle = WHITE;
+        ctx.strokeStyle = BLACK;
+        ctx.lineWidth = stroke;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    // 文字绘制
+    function txt(text, x, y, size, bold, align) {
+        ctx.font = (bold ? 'bold ' : '') + s(size) + 'px sans-serif';
+        ctx.fillStyle = BLACK;
+        ctx.textAlign = align || 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y);
+    }
+
+    // 进度条绘制（带内边距）
+    function drawProgress(x, y, w, h, progress) {
+        var pad = s(6); // 内边距
+        var innerW = w - pad * 2;
+        var innerH = h - pad * 2;
+        var innerX = x + pad;
+        var innerY = y + pad;
+        var r = innerH / 2;
+
+        // 外框
+        ctx.strokeStyle = BLACK;
+        ctx.lineWidth = stroke;
+        ctx.beginPath();
+        ctx.moveTo(x + h/2, y);
+        ctx.lineTo(x + w - h/2, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + h/2);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - h/2, y + h);
+        ctx.lineTo(x + h/2, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h/2);
+        ctx.quadraticCurveTo(x, y, x + h/2, y);
+        ctx.closePath();
+        ctx.stroke();
+
+        // 填充（带内边距，不贴边）
+        if (progress > 0) {
+            ctx.fillStyle = BLACK;
+            var fillW = innerW * progress;
+            ctx.beginPath();
+            ctx.moveTo(innerX + r, innerY);
+            ctx.lineTo(innerX + Math.min(fillW, innerW - r), innerY);
+            if (fillW >= innerW - r) {
+                ctx.quadraticCurveTo(innerX + fillW, innerY, innerX + fillW, innerY + r);
+                ctx.quadraticCurveTo(innerX + fillW, innerY + innerH, innerX + fillW - r, innerY + innerH);
+            } else {
+                ctx.lineTo(innerX + fillW, innerY + innerH);
+            }
+            ctx.lineTo(innerX + r, innerY + innerH);
+            ctx.quadraticCurveTo(innerX, innerY + innerH, innerX, innerY + r);
+            ctx.quadraticCurveTo(innerX, innerY, innerX + r, innerY);
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+
+    // 基础参数
+    var margin = s(40);
+    var bottomPad = s(bodySize * 0.8); // 最后一本书的底部额外边距
+
+    // 预计算高度
+    var topH = s(340);
+    var statH = s(150);
+    var chartH = showChart && appData.daily && appData.daily.length > 0 ? s(300) : 0;
+    var footerH = footerNote ? s(180) : 0;
+    var bookPadding = s(20);
+
+    // 固定部分高度（不含书籍卡片）
+    var fixedTotal = topH + gap + statH;
+    if (chartH > 0) fixedTotal += gap + chartH;
+    if (footerH > 0) fixedTotal += gap + footerH;
+
+    // 可用书籍区域高度
+    var availableBookH = H - margin * 2 - fixedTotal - bookPadding * 2;
+    var bookRowH = s(130) * lineHeight;
+    var bookGap = s(16);
+    var actualRowH = bookRowH + bookGap;
+
+    // 按阅读时间排序
+    var sortedBooks = appData.books.slice().sort(function(a, b) {
+        return (b.durChapterTime || 0) - (a.durChapterTime || 0);
+    });
+    var maxBookRows = sortedBooks.length;
+
+    // ===== 自适应：最多显示6本书，优先压缩间距和行高 =====
+    var MAX_BOOKS = 6;
+    if (maxBookRows > MAX_BOOKS) maxBookRows = MAX_BOOKS;
+
+    // 计算单行内容最小高度
+    var minNameH = s(bodySize * 1.3);
+    var minAuthorH = s(bodySize * 1.1);
+    var minBarH = s(bodySize * 1.1);
+    var minGap1 = s(bodySize * 0.3);
+    var minGap2 = s(bodySize * 0.3);
+    var minRowContentH = minNameH + minGap1 + minAuthorH + minGap2 + minBarH;
+    var minActualRowH = minRowContentH + s(8);
+
+    // 先尝试压缩间距
+    while (gap > 10) {
+        var fixedTotal = topH + gap + statH;
+        if (chartH > 0) fixedTotal += gap + chartH;
+        if (footerH > 0) fixedTotal += gap + footerH;
+        var availableBookH = H - margin * 2 - fixedTotal - bookPadding * 2;
+        var neededBookH = maxBookRows * actualRowH + bookPadding * 2;
+        if (neededBookH <= availableBookH) break;
+        gap -= 2;
+    }
+
+    // 间距压到底还不够，压缩行高
+    if (gap <= 10) {
+        var fixedTotal = topH + gap + statH;
+        if (chartH > 0) fixedTotal += gap + chartH;
+        if (footerH > 0) fixedTotal += gap + footerH;
+        var availableBookH = H - margin * 2 - fixedTotal - bookPadding * 2;
+        var neededBookH = maxBookRows * actualRowH + bookPadding * 2;
+
+        if (neededBookH > availableBookH) {
+            bookRowH = Math.floor((availableBookH - bookPadding * 2) / maxBookRows) - bookGap;
+            actualRowH = bookRowH + bookGap;
+            if (actualRowH < minActualRowH) {
+                actualRowH = minActualRowH;
+                bookRowH = actualRowH - bookGap;
+            }
+        }
+    }
+
+    // 计算 bookH
+    var bookH = maxBookRows * actualRowH + bookPadding * 2;
+
+    // 计算总高度
+    var total = topH + gap + bookH + gap + statH;
+    if (chartH > 0) total += gap + chartH;
+    if (footerH > 0) total += gap + footerH;
+
+    // 如果还超，减少书籍数量
+    while (total > H - margin * 2 && maxBookRows > 1) {
+        maxBookRows--;
+        bookH = maxBookRows * actualRowH + bookPadding * 2;
+        total = topH + gap + bookH + gap + statH;
+        if (chartH > 0) total += gap + chartH;
+        if (footerH > 0) total += gap + footerH;
+    }
+
+    // 如果还超，隐藏图表
+    if (total > H - margin * 2 && chartH > 0) {
+        chartH = 0;
+        total = topH + gap + bookH + gap + statH;
+        if (footerH > 0) total += gap + footerH;
+    }
+
+    // 如果还超，压缩 footer
+    if (total > H - margin * 2 && footerH > 0) {
+        footerH = s(100);
+        total = topH + gap + bookH + gap + statH;
+        if (chartH > 0) total += gap + chartH;
+        if (footerH > 0) total += gap + footerH;
+    }
+
+    // 最终确保不溢出
+    var blank = Math.max(0, H - margin * 2 - total);
+    var modCount = [topH, bookH, statH, chartH, footerH].filter(function(h) { return h > 0; }).length;
+    var blankEach = modCount === 0 ? 0 : Math.floor(blank / modCount);
+
+    var y = margin + blankEach;
+    var cw = W - margin * 2;
+    var right = W - margin - s(32);
+
+    // 截断书籍列表
+    sortedBooks = sortedBooks.slice(0, maxBookRows);
+
+    // ===== 1. 顶部卡片 =====
+    card(margin, y, cw, topH, radius);
+    var midY = y + topH / 2;
+
+    var order = String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0');
+    txt(order, margin + s(40), y + topH / 2, 160 * 1.3, true);
+
+    txt(billTitle, right, midY - s(bodySize * 1.3) * 1.0, titleSize * 1.3, true, 'right');
+    txt('操作编号: ' + String(Math.floor(Math.random() * 900000) + 100000), right, midY + s(bodySize) * 0.8, bodySize, false, 'right');
+    var today = new Date();
+    var s30 = new Date(today - 29 * 86400000);
+    var fmt = function(d) { return d.getFullYear() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + String(d.getDate()).padStart(2, '0'); };
+    txt(fmt(s30) + ' - ' + fmt(today), right, midY + s(bodySize) * 0.8 + s(bodySize) * 1.3, bodySize, false, 'right');
+
+    y += topH + gap + blankEach;
+
+    // ===== 2. 书籍卡片 =====
+    card(margin, y, cw, bookH, radius);
+
+    // 计算书籍内容区域，确保上下边距一致，视觉居中
+    var contentH = maxBookRows * actualRowH;
+    var topBlank = (bookH - contentH) / 2;
+    var rowY = y + topBlank;
+
+    sortedBooks.forEach(function(book, idx) {
+        var isLast = idx === sortedBooks.length - 1;
+        var nameSize = bodySize * 1.3;
+        var authorSize = bodySize * 1.1;
+        var barH = s(bodySize * 1.1);
+
+        // 计算单行内三个元素的垂直分布，使其居中
+        var nameH = s(nameSize);
+        var authorH = s(authorSize);
+        var gap1 = s(bodySize * 0.3); // 书名与作者间距
+        var gap2 = s(bodySize * 0.3); // 作者与进度条间距
+        var totalContentH = nameH + gap1 + authorH + gap2 + barH;
+        var startY = rowY + (actualRowH - totalContentH) / 2;
+
+        // 书名
+        var name = book.name.length > 12 ? book.name.substring(0, 12) + '…' : book.name;
+        txt(name, margin + s(40), startY + nameH / 2, nameSize, true);
+
+        // 作者
+        var author = (book.author || '未知').length > 8 ? book.author.substring(0, 8) + '…' : (book.author || '未知');
+        txt(author, margin + s(40), startY + nameH + gap1 + authorH / 2, authorSize, true);
+
+        // 进度条
+        var totalChapter = book.totalChapterNum || 1;
+        var durChapter = (book.durChapterIndex || 0) + 1;
+        var progress = totalChapter > 0 ? Math.min(durChapter / totalChapter, 1) : 0;
+
+        var barX = margin + s(40);
+        var barY = startY + nameH + gap1 + authorH + gap2;
+        // 进度条宽度 = 卡片宽度 - 左间距 - 右间距(百分比文字宽度+边距)
+        var pctTextW = s(bodySize * 2.5); // 百分比文字大约占的宽度
+        var barW = cw - s(80) - pctTextW - s(20); // 左右各留40，百分比右边也留40
+        drawProgress(barX, barY, barW, barH, progress);
+
+        // 进度百分比文字（右侧外边，加粗，左右边距一致=40）
+        var pct = Math.round(progress * 100) + '%';
+        txt(pct, barX + barW + s(20), barY + barH / 2, bodySize * 1.1, true, 'left');
+
+        rowY += actualRowH;
+    });
+
+    y += bookH + gap + blankEach;
+
+    // ===== 3. 统计卡片 =====
+    card(margin, y, cw, statH, Math.min(radius, 14));
+    var stats = [
+        ['今日', appData.todayTime || 0],
+        ['本月', appData.monthTime || 0],
+        ['累计', appData.totalTime || 0],
+        ['活跃', (appData.activeDays || 0) * 86400000]
+    ];
+    var colW = cw / 4;
+    var statMid = y + statH / 2;
+
+    for (var i = 1; i <= 3; i++) {
+        var lx = margin + i * colW;
+        ctx.beginPath();
+        ctx.moveTo(lx, y + s(20));
+        ctx.lineTo(lx, y + statH - s(20));
+        ctx.stroke();
+    }
+
+    stats.forEach(function(item, idx) {
+        var label = item[0];
+        var val = item[1];
+        var cx = margin + idx * colW + colW / 2;
+        txt(label, cx, statMid - s(24), 24, true, 'center');
+        var vstr = label === '活跃' ? (Math.floor(val / 86400000) || appData.activeDays || 0) + '天' : fmtTime(val);
+        txt(vstr, cx, statMid + s(28), bodySize, true, 'center');
+    });
+
+    y += statH + gap + blankEach;
+
+    // ===== 4. 趋势图 =====
+    if (chartH > 0 && appData.daily && appData.daily.length > 0) {
+        card(margin, y, cw, chartH, radius);
+        txt('阅读趋势', margin + s(24), y + s(36), 28, true);
+
+        var top = y + s(48);
+        var bot = y + chartH - s(36);
+        var left = margin + s(24);
+        var right2 = W - margin - s(24);
+        var areaH = bot - top;
+        var areaW = right2 - left;
+        var daily = appData.daily.slice(0, 30).reverse();
+        var values = daily.map(function(d) { return d.readTime || 0; });
+        var maxTime = Math.max.apply(null, values.concat([1]));
+        var stepW = areaW / Math.max(daily.length - 1, 1);
+        var chartType = document.querySelector('input[name="chartType"]:checked');
+        var isBar = chartType && chartType.value === 'bar';
+
+        for (var gi = 1; gi <= 4; gi++) {
+            var gy = top + areaH * gi / 5;
+            ctx.beginPath();
+            ctx.moveTo(left, gy);
+            ctx.lineTo(right2, gy);
+            ctx.stroke();
+        }
+
+        if (isBar) {
+            var barW = stepW * 0.5;
+            ctx.fillStyle = BLACK;
+            daily.forEach(function(item, idx) {
+                var bx = left + idx * stepW;
+                var bh = (item.readTime || 0) / maxTime * areaH * 0.85;
+                var bt = bot - bh;
+                ctx.fillRect(bx, bt, barW, bh);
+            });
+        } else {
+            ctx.strokeStyle = BLACK;
+            ctx.lineWidth = s(3);
+            ctx.beginPath();
+            var coords = [];
+            daily.forEach(function(item, idx) {
+                var x = left + idx * stepW;
+                var vy = bot - (item.readTime || 0) / maxTime * areaH * 0.85;
+                coords.push([x, vy]);
+                if (idx === 0) ctx.moveTo(x, vy); else ctx.lineTo(x, vy);
+            });
+            ctx.stroke();
+
+            coords.forEach(function(pt) {
+                ctx.fillStyle = BLACK;
+                ctx.beginPath();
+                ctx.arc(pt[0], pt[1], s(5), 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(left, bot);
+        ctx.lineTo(right2, bot);
+        ctx.stroke();
+
+        var stepCount = Math.max(Math.floor(daily.length / 5), 1);
+        daily.forEach(function(item, idx) {
+            if (idx % stepCount === 0 || idx === daily.length - 1) {
+                var date = item.date ? item.date.substring(5) : '';
+                txt(date, left + idx * stepW, bot + s(24), 14, false, 'center');
+            }
+        });
+
+        y += chartH + gap + blankEach;
+    }
+
+    // ===== 5. 底部备注 =====
+    if (footerH > 0) {
+        card(margin, y, cw, footerH, radius);
+        txt(footerNote, margin + cw / 2, y + footerH / 2, bodySize * 1.5, true, 'center');
+    }
+
+    show('生成完成，点击保存');
+}
+
+// ==================== 全屏预览 ====================
+function openFullscreen() {
+    var c = document.getElementById('cvs');
+    var fs = document.getElementById('fullscreen');
+    var img = document.getElementById('fsImg');
+    if (!c || !fs || !img) return;
+    img.src = c.toDataURL('image/png');
+    fs.style.display = 'flex';
+}
+
+function closeFullscreen() {
+    var fs = document.getElementById('fullscreen');
+    if (fs) fs.style.display = 'none';
+}
+
+// ==================== 保存 ====================
+function save() {
+    var c = document.getElementById('cvs');
+    if (!c || !appData) { show('请先生成'); return; }
+
+    if (typeof LegadoBridge !== 'undefined') {
+        try {
+            var base64 = c.toDataURL('image/png');
+            LegadoBridge.saveBitmap(base64, 'reading_bill_' + Date.now() + '.png');
+            show('正在保存...');
+            return;
+        } catch(e) {}
+    }
+
+    var a = document.createElement('a');
+    a.download = 'reading_bill_' + Date.now() + '.png';
+    a.href = c.toDataURL('image/png');
+    a.click();
+    show('已下载');
+}
+
+// ==================== 事件绑定 ====================
+function bindRange(id, displayId) {
+    var el = document.getElementById(id);
+    var disp = document.getElementById(displayId);
+    if (!el || !disp) return;
+    el.addEventListener('input', function() {
+        disp.textContent = el.value;
+        draw();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 绑定事件
+    bindRange('titleSize', 'titleVal');
+    bindRange('bodySize', 'bodyVal');
+    bindRange('cardRadius', 'radVal');
+    bindRange('strokeWidth', 'strVal');
+
+    var billTitleEl = document.getElementById('billTitle');
+    var footerNoteEl = document.getElementById('footerNote');
+    var showChartEl = document.getElementById('showChart');
+    var btnSave = document.getElementById('btnSave');
+
+    if (billTitleEl) billTitleEl.addEventListener('input', draw);
+    if (footerNoteEl) footerNoteEl.addEventListener('input', draw);
+    if (showChartEl) showChartEl.addEventListener('change', draw);
+
+    document.querySelectorAll('input[name="chartType"]').forEach(function(r) {
+        r.addEventListener('change', draw);
+    });
+
+    if (btnSave) btnSave.addEventListener('click', save);
+
+    var btnPreview = document.getElementById('btnPreview');
+    if (btnPreview) btnPreview.addEventListener('click', openFullscreen);
+
+    var cvs = document.getElementById('cvs');
+    if (cvs) cvs.addEventListener('click', openFullscreen);
+
+    // 如果有数据就绘制，否则显示等待
+    if (window.legadoData && window.legadoData.books) {
+        receiveData(window.legadoData);
+    } else {
+        show('等待 App 数据...');
+    }
+});
+</script>
+</body>
+</html>

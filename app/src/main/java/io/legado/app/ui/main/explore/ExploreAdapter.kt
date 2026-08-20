@@ -139,6 +139,24 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
             recyclerFlexbox(flexbox)
             flexbox.gone()
         }
+
+        // ========== 新增按钮逻辑 开始 ==========
+        
+btnRefresh.setOnClickListener {
+    refreshExplore(item, holder.layoutPosition, binding)
+}
+
+btnLogin.setOnClickListener {
+    context.startActivity<SourceLoginActivity> {
+        putExtra("type", "bookSource")
+        putExtra("key", item.bookSourceUrl)
+    }
+}
+
+// 统一显隐控制，选用项目自带扩展函数
+if(item.hasLoginUrl) btnLogin.visible() else btnLogin.gone()
+
+        // ========== 新增按钮逻辑 结束 ==========
     }
 }
 
@@ -151,6 +169,8 @@ class ExploreAdapter(context: Context, val callBack: CallBack) :
         val sourceUrl = item.bookSourceUrl
         kotlin.runCatching {
             recyclerFlexbox(flexbox)
+            flexbox.setPadding(0, flexbox.paddingTop, 0, flexbox.paddingBottom)
+    
             flexbox.visible()
             val source by lazy { appDb.bookSourceDao.getBookSource(sourceUrl) }
             val infoMap by lazy {

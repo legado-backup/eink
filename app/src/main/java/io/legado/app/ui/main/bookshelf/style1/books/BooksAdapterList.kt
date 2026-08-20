@@ -39,6 +39,7 @@ class BooksAdapterList(
             ivCover.load(item, false)
             upRefresh(binding, item)
             upLastUpdateTime(binding, item)
+            upProgress(binding, item)
         } else {
             for (i in payloads.indices) {
                 val bundle = payloads[i] as Bundle
@@ -57,6 +58,7 @@ class BooksAdapterList(
 
                         "refresh" -> upRefresh(binding, item)
                         "lastUpdateTime" -> upLastUpdateTime(binding, item)
+                        "progress" -> upProgress(binding, item)
                     }
                 }
             }
@@ -87,6 +89,13 @@ class BooksAdapterList(
         } else {
             binding.tvLastUpdateTime.text = ""
         }
+    }
+
+    private fun upProgress(binding: ItemBookshelfListBinding, item: Book) {
+        val total = item.totalChapterNum
+        val current = item.durChapterIndex + 1
+        val progress = if (total > 0) (current * 100 / total).coerceIn(0, 100) else 0
+        binding.progressBar.progress = progress
     }
 
     override fun registerListener(holder: ItemViewHolder, binding: ItemBookshelfListBinding) {

@@ -192,36 +192,43 @@ val textAntiAliasPaint by lazy {
      * pageOffset + textPage.height 为 textPage 下方的高度
      */
     fun scroll(mOffset: Int) {
+        setEinkMode(14)
         pageOffset += mOffset
         if (longScreenshot) {
             scrollY += -mOffset
         }
         if (!pageFactory.hasPrev() && pageOffset > 0) {
-            pageOffset = 0
-            pageDelegate?.abortAnim()
-        } else if (!pageFactory.hasNext()
-            && pageOffset < 0
-            && pageOffset + textPage.height < ChapterProvider.visibleHeight
-        ) {
-            val offset = (ChapterProvider.visibleHeight - textPage.height).toInt()
-            pageOffset = min(0, offset)
-            pageDelegate?.abortAnim()
-        } else if (pageOffset > 0) {
-            if (pageFactory.moveToPrev(true)) {
-                pageOffset -= textPage.height.toInt()
-            } else {
-                pageOffset = 0
-                pageDelegate?.abortAnim()
-            }
-        } else if (pageOffset < -textPage.height) {
-            val height = textPage.height
-            if (pageFactory.moveToNext(upContent = true)) {
-                pageOffset += height.toInt()
-            } else {
-                pageOffset = -height.toInt()
-                pageDelegate?.abortAnim()
-            }
-        }
+    pageOffset = 0
+    pageDelegate?.abortAnim()
+    setEinkMode(8)
+} else if (!pageFactory.hasNext()
+    && pageOffset < 0
+    && pageOffset + textPage.height < ChapterProvider.visibleHeight
+) {
+    val offset = (ChapterProvider.visibleHeight - textPage.height).toInt()
+    pageOffset = min(0, offset)
+    pageDelegate?.abortAnim()
+    setEinkMode(8)
+} else if (pageOffset > 0) {
+    if (pageFactory.moveToPrev(true)) {
+        pageOffset -= textPage.height.toInt()
+        setEinkMode(8)
+    } else {
+        pageOffset = 0
+        pageDelegate?.abortAnim()
+        setEinkMode(8)
+    }
+} else if (pageOffset < -textPage.height) {
+    val height = textPage.height
+    if (pageFactory.moveToNext(upContent = true)) {
+        pageOffset += height.toInt()
+        setEinkMode(8)
+    } else {
+        pageOffset = -height.toInt()
+        pageDelegate?.abortAnim()
+        setEinkMode(8)
+    }
+}
         postInvalidate()
     }
 
@@ -829,4 +836,12 @@ val textAntiAliasPaint by lazy {
         fun oldClickImg(src: String): Boolean
         fun clickImg(click: String, src: String)
     }
+		
+		private fun setEinkMode(mode: Int) {
+    runCatching {
+        Runtime.getRuntime().exec(arrayOf("su", "-c", "resetprop sys.eink.mode $mode"))
+    }
+}
+		
+		
 }

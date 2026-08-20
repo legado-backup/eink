@@ -34,26 +34,38 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
         when (binding) {
             is ItemBookshelfGridBinding -> binding.run {
                 if (payloads.isEmpty()) {
+                    ivCover.load(item, false)
+                    upRefresh(binding, item)
                     if (showBookname == 0) {
                         tvName.visible()
                         tvName.text = item.name
+                        progressBar.gone()
                     } else {
                         tvName.gone()
+                        upProgress(binding, item)
                     }
-                    ivCover.load(item, false)
-                    upRefresh(binding, item)
                 } else {
                     for (i in payloads.indices) {
                         val bundle = payloads[i] as Bundle
                         bundle.keySet().forEach {
                             when (it) {
-                                "name" -> tvName.text = item.name
-                                "cover" -> ivCover.load(
-                                    item,
-                                    false
-                                )
-
+                                "name" -> {
+                                    tvName.text = item.name
+                                    if (showBookname == 0) {
+                                        tvName.visible()
+                                        progressBar.gone()
+                                    } else {
+                                        tvName.gone()
+                                        upProgress(binding, item)
+                                    }
+                                }
+                                "cover" -> ivCover.load(item, false)
                                 "refresh" -> upRefresh(binding, item)
+                                "progress" -> {
+                                    if (showBookname != 0) {
+                                        upProgress(binding, item)
+                                    }
+                                }
                             }
                         }
                     }
@@ -64,18 +76,16 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                     tvName.text = item.name
                     ivCover.load(item, false)
                     upRefresh(binding, item)
+                    upProgress(binding, item)
                 } else {
                     for (i in payloads.indices) {
                         val bundle = payloads[i] as Bundle
                         bundle.keySet().forEach {
                             when (it) {
                                 "name" -> tvName.text = item.name
-                                "cover" -> ivCover.load(
-                                    item,
-                                    false
-                                )
-
+                                "cover" -> ivCover.load(item, false)
                                 "refresh" -> upRefresh(binding, item)
+                                "progress" -> upProgress(binding, item)
                             }
                         }
                     }
@@ -83,6 +93,22 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
             }
         }
 
+    }
+
+    private fun upProgress(binding: ViewBinding, item: Book) {
+        val total = item.totalChapterNum
+        val current = item.durChapterIndex + 1
+        val progress = if (total > 0) (current * 100 / total).coerceIn(0, 100) else 0
+        when (binding) {
+            is ItemBookshelfGridBinding -> {
+                binding.progressBar.visible()
+                binding.progressBar.progress = progress
+            }
+            is ItemBookshelfGrid2Binding -> {
+                binding.progressBar.visible()
+                binding.progressBar.progress = progress
+            }
+        }
     }
 
     private fun upRefresh(binding: ViewBinding, item: Book) {

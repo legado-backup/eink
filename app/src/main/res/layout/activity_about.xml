@@ -26,8 +26,9 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:text="阅读"
+                android:text="阅读 E-ink"
                 android:textSize="20sp"
+								 android:textColor="@android:color/black"
                 android:textStyle="bold" />
 
             <TextView
@@ -35,7 +36,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="基于LYC版本二次编译,专门适配墨水屏阅读器" />
+								 android:textColor="@android:color/black"
+                android:text="基于LYC版本二次编译E-ink版本,适配市面所有安卓开放墨水屏阅读器,减少多余动画,增强渲染专为墨水屏优化" />
         </LinearLayout>
 
     </io.legado.app.ui.widget.TitleBar>

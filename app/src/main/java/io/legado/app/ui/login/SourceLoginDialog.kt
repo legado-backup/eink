@@ -293,6 +293,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     binding.root,
                     false
                 ).let {
+								    
                     val editText = it.editText
                     binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
@@ -351,6 +352,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     binding.root,
                     false
                 ).let {
+								    
                     val editText = it.editText
                     binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
@@ -480,6 +482,14 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     binding.root,
                     false
                 ).let {
+								    val btnBg = android.graphics.drawable.GradientDrawable()
+    btnBg.setColor(-1)
+    btnBg.setStroke(2, -16777216)
+    btnBg.cornerRadius = it.root.resources.displayMetrics.density * 8f
+    it.root.background = btnBg
+    it.textView.setTextColor(-16777216)
+								
+								
                     binding.flexbox.addView(it.root, insertIndex)
                     rowUi.style().apply {
                         when (this.layout_justifySelf) {
@@ -543,6 +553,14 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     binding.root,
                     false
                 ).let {
+								
+								    val toggleBg = android.graphics.drawable.GradientDrawable()
+    toggleBg.setColor(-1)
+    toggleBg.setStroke(2, -16777216)
+    toggleBg.cornerRadius = it.root.resources.displayMetrics.density * 8f
+    it.root.background = toggleBg
+    it.textView.setTextColor(-16777216)
+								
                     var newName = name
                     var left = true
                     binding.flexbox.addView(it.root, insertIndex)

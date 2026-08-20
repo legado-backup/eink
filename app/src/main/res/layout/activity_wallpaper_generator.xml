@@ -1,0 +1,446 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF">
+
+    <!-- 顶部信息栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvScreenInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="屏幕: 检测中..."
+            android:textSize="13sp"
+            android:textColor="#666666"/>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="就绪"
+            android:textSize="13sp"
+            android:textColor="#999999"/>
+    </LinearLayout>
+
+    <!-- 可折叠设置面板 -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!-- 账单标题 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="账单标题"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:textStyle="bold"/>
+
+                <EditText
+                    android:id="@+id/etBillTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:padding="12dp"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:maxLines="1"
+                    android:background="@null"/>
+            </LinearLayout>
+
+            <!-- 标题字号 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="标题字号"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:textStyle="bold"/>
+
+                <SeekBar
+                    android:id="@+id/seekTitleSize"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:max="120"
+                    android:progress="64"/>
+
+                <TextView
+                    android:id="@+id/tvTitleSizeValue"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:text="64"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:gravity="end"/>
+            </LinearLayout>
+
+            <!-- 正文字号 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="正文字号"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:textStyle="bold"/>
+
+                <SeekBar
+                    android:id="@+id/seekBodySize"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="12dp"
+                    android:max="60"
+                    android:progress="26"/>
+
+                <TextView
+                    android:id="@+id/tvBodySizeValue"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:text="26"
+                    android:textSize="15sp"
+                    android:textColor="#000000"
+                    android:textStyle="bold"
+                    android:gravity="end"/>
+            </LinearLayout>
+
+            <!-- 单号模式 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="单号模式"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <RadioGroup
+                android:id="@+id/rgOrderMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+
+                <RadioButton
+                    android:id="@+id/rbOrderDate"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="月日"
+                    android:textSize="13sp"
+                    android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbOrderRandom"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="随机"
+                    android:textSize="13sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbOrderCustom"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="自定义"
+                    android:textSize="13sp"/>
+            </RadioGroup>
+
+            <EditText
+                android:id="@+id/etCustomOrder"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:text="0603"
+                android:textSize="15sp"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"
+                android:background="@null"/>
+
+            <!-- 统计周期 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="统计周期"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <RadioGroup
+                android:id="@+id/rgPeriod"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <RadioButton
+                    android:id="@+id/rbToday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="当天"
+                    android:textSize="12sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbYesterday"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="昨天"
+                    android:textSize="12sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbWeek"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="本周"
+                    android:textSize="12sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbLastWeek"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="上周"
+                    android:textSize="12sp"/>
+
+                <RadioButton
+                    android:id="@+id/rb7Days"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="7天"
+                    android:textSize="12sp"/>
+
+                <RadioButton
+                    android:id="@+id/rb30Days"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="30天"
+                    android:textSize="12sp"
+                    android:checked="true"/>
+            </RadioGroup>
+
+            <!-- 开关选项 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchShowProgress"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="显示进度"
+                    android:checked="true"/>
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchShowChart"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="显示图表"
+                    android:checked="true"/>
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchShowPeak"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="峰值标签"
+                    android:checked="true"/>
+            </LinearLayout>
+
+            <!-- 图表类型 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="图表类型"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <RadioGroup
+                android:id="@+id/rgChartType"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp">
+
+                <RadioButton
+                    android:id="@+id/rbLine"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="折线"
+                    android:textSize="14sp"
+                    android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbBar"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="柱状"
+                    android:textSize="14sp"/>
+            </RadioGroup>
+
+            <!-- 底部模式 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="底部装饰"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <RadioGroup
+                android:id="@+id/rgFooterMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp">
+
+                <RadioButton
+                    android:id="@+id/rbFooterNone"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="不显示"
+                    android:textSize="14sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbFooterText"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="只显示备注"
+                    android:textSize="14sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbFooterBarcode"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="备注 + 条码"
+                    android:textSize="14sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbFooterFull"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:text="备注 + 二维码 + 条码"
+                    android:textSize="14sp"
+                    android:checked="true"/>
+            </RadioGroup>
+
+            <!-- 备注文字 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="备注文字"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"/>
+
+            <EditText
+                android:id="@+id/etFooterNote"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:text="我本愿将心向明月，奈何明月照沟渠。"
+                android:textSize="14sp"
+                android:layout_marginBottom="12dp"
+                android:background="@null"/>
+
+            <!-- 生成按钮 -->
+            <Button
+                android:id="@+id/btnGenerate"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="生成预览"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:background="#000000"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- 预览区域 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="预览"
+                android:textSize="15sp"
+                android:textColor="#000000"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"/>
+
+            <ImageView
+                android:id="@+id/ivPreview"
+                android:layout_width="match_parent"
+                android:layout_height="400dp"
+                android:background="#F5F5F0"
+                android:scaleType="fitCenter"
+                android:padding="8dp"/>
+
+            <!-- 保存按钮 -->
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="保存到相册"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:background="#000000"
+                android:layout_marginTop="12dp"/>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

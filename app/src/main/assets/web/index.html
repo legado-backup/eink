@@ -1,72 +1,465 @@
-<!DOCTYPE HTML>
-<!--
-	Forty by HTML5 UP
-	html5up.net | @ajlkn
-	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
--->
+<!DOCTYPE html>
 <html>
-
 <head>
-    <title>Legado web 导航</title>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
-    <link rel="stylesheet" href="assets/css/main.css"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kindle Reader</title>
+<style>
+* { margin: 0; padding: 0; }
+
+/* 手机默认小字体 */
+html, body {
+    font-family: "Songti SC", "SimSun", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    background: #f0f0f0;
+}
+
+.page { display: none; }
+.page.active { display: block; }
+
+/* 书架 */
+.shelf-wrap {
+    width: 90%;
+    margin: 10% auto;
+}
+
+.book-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.book-cover {
+    float: left;
+    width: 55px;
+    height: 75px;
+    margin-right: 10px;
+    border: 1px solid #ccc;
+    background: #eee;
+    text-align: center;
+    line-height: 75px;
+    font-size: 11px;
+    color: #999;
+}
+
+.book-cover img { width: 100%; height: 100%; }
+
+.book-info { margin-left: 65px; }
+
+.book-name { font-size: 15px; font-weight: bold; color: #222; margin-bottom: 3px; }
+
+.book-author { font-size: 12px; color: #666; margin-bottom: 4px; }
+
+.book-progress {
+    font-size: 11px;
+    color: #888;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    padding: 2px 6px;
+    display: inline-block;
+}
+
+.clear { clear: both; height: 0; }
+
+.empty-tip { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
+
+.loading { text-align: center; padding: 30px; color: #999; font-size: 14px; }
+
+.error { color: #c00; text-align: center; padding: 30px; font-size: 14px; }
+
+/* 目录 - 用table做左右边距 */
+.toc-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    margin-top: 15%;
+}
+
+.toc-table td {
+    width: 12px;
+}
+
+.toc-item {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.toc-item.current { background: #e0e0e0; font-weight: bold; border: 1px solid #999; }
+
+/* 阅读页 */
+.read-wrap {
+    background: #fff;
+    width: 90%;
+    margin: 10% auto;
+    padding: 12px 0;
+}
+
+.chapter-title {
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.chapter-content {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #333;
+    padding: 0 25px;
+}
+
+.chapter-content p {
+    text-indent: 2em;
+    margin-bottom: 0.6em;
+    text-align: justify;
+}
+
+/* 底部按钮 */
+.bottom-bar {
+    text-align: center;
+    margin-top: 16px;
+    padding: 10px;
+    border-top: 1px solid #eee;
+}
+
+.bottom-bar button {
+    padding: 5px 12px;
+    margin: 0 3px;
+    border: 1px solid #999;
+    background: #fff;
+    font-size: 13px;
+    color: #333;
+    cursor: pointer;
+}
+
+/* ===== Kindle 大屏幕放大 ===== */
+@media screen and (min-width: 600px) {
+    html, body {
+        font-size: 20px;
+        line-height: 1.8;
+    }
+
+    .shelf-wrap {
+        width: 85%;
+        margin: 8% auto;
+    }
+
+    .book-card {
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+
+    .book-cover {
+        width: 80px;
+        height: 110px;
+        margin-right: 16px;
+        line-height: 110px;
+        font-size: 16px;
+    }
+
+    .book-info { margin-left: 96px; }
+
+    .book-name { font-size: 22px; margin-bottom: 6px; }
+
+    .book-author { font-size: 18px; margin-bottom: 8px; }
+
+    .book-progress {
+        font-size: 16px;
+        padding: 4px 10px;
+    }
+
+    .empty-tip { padding: 60px 20px; font-size: 20px; }
+
+    .loading { padding: 40px; font-size: 20px; }
+
+    .error { padding: 40px; font-size: 20px; }
+
+    .toc-table {
+        margin-top: 10%;
+    }
+
+    .toc-table td {
+        width: 20px;
+    }
+
+    .toc-item {
+        padding: 16px 18px;
+        margin-bottom: 10px;
+        font-size: 20px;
+    }
+
+    .read-wrap {
+        width: 85%;
+        margin: 8% auto;
+        padding: 20px 0;
+    }
+
+    .chapter-title {
+        font-size: 26px;
+        margin-bottom: 24px;
+        padding-bottom: 12px;
+    }
+
+    .chapter-content {
+        font-size: 22px;
+        line-height: 2.0;
+        padding: 0 30px;
+    }
+
+    .chapter-content p {
+        margin-bottom: 1em;
+    }
+
+    .bottom-bar {
+        margin-top: 24px;
+        padding: 16px;
+    }
+
+    .bottom-bar button {
+        padding: 10px 20px;
+        margin: 0 6px;
+        font-size: 18px;
+    }
+}
+</style>
 </head>
+<body>
 
-<body class="is-preload">
-
-<!-- Wrapper -->
-<div id="wrapper">
-
-    <!-- Header -->
-    <header id="header" class="alt">
-        <nav>
-            <a href="#menu">Menu</a>
-        </nav>
-    </header>
-
-    <!-- Menu -->
-    <nav id="menu">
-        <ul class="links">
-            <li><a href="https://github.com/gedoor/legado">Github</a></li>
-            <li><a href="https://github.com/zsakvo">zsakvo</a></li>
-            <li><a href="#">Design: HTML5 UP</a></li>
-        </ul>
-    </nav>
-
-    <!-- Banner -->
-    <section id="banner" class="major">
-        <div class="inner">
-            <header class="major">
-                <h1>昨日邻家乞新火，晓窗分与读书灯</h1>
-            </header>
-            <div class="content">
-                <!-- <p>A responsive site template designed by HTML5 UP<br />
-                    and released under the Creative Commons.</p> -->
-                <ul class="actions">
-                    <li><a href="vue/index.html" class="button next scrolly" target="_blank">书架</a>
-                    </li>
-                </ul>
-                <ul class="actions">
-                    <li><a href="vue/index.html#/bookSource" class="button next scrolly"
-                           target="_blank">书源</a></li>
-                </ul>
-                <ul class="actions">
-                    <li><a href="uploadBook/index.html" class="button next scrolly" target="_blank">传书</a>
-                    </li>
-                </ul>
-                <ul class="actions">
-                    <li><a href="vue/index.html#/rssSource" class="button next scrolly"
-                           target="_blank">订阅源</a></li>
-                </ul>
-            </div>
-        </div>
-    </section>
+<div id="page-shelf" class="page active">
+    <div class="shelf-wrap" id="shelf-list">
+        <div class="loading">加载中...</div>
+    </div>
 </div>
 
-<!-- Scripts -->
-<script src="assets/js/dist.js"></script>
+<div id="page-toc" class="page">
+    <table class="toc-table">
+        <tr>
+            <td></td>
+            <td>
+                <div id="toc-list"></div>
+            </td>
+            <td></td>
+        </tr>
+    </table>
+</div>
+
+<div id="page-read" class="page read-wrap">
+    <div class="chapter-title" id="chapter-title"></div>
+    <div class="chapter-content" id="chapter-content"></div>
+    <div class="bottom-bar">
+        <button onclick="prevChapter()">上一章</button>
+        <button onclick="goShelf()">书架</button>
+        <button onclick="showToc()">目录</button>
+        <button onclick="nextChapter()">下一章</button>
+    </div>
+</div>
+
+<script>
+var currentBook = null;
+var chapters = [];
+var currentChapterIndex = 0;
+
+function showPage(id) {
+    var pages = document.getElementsByClassName("page");
+    for (var i = 0; i < pages.length; i++) {
+        pages[i].className = "page";
+    }
+    document.getElementById(id).className = "page active";
+    window.scrollTo(0, 0);
+}
+
+function ajaxGet(url, cb, err) {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try { cb(JSON.parse(xhr.responseText)); } catch(e) { cb(xhr.responseText); }
+            } else if (err) { err(xhr.status); }
+        }
+    };
+    xhr.open("GET", url, true);
+    xhr.send();
+}
+
+function ajaxPost(url, data, cb, err) {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+                try { cb(JSON.parse(xhr.responseText)); } catch(e) { cb(xhr.responseText); }
+            } else if (err) { err(xhr.status); }
+        }
+    };
+    xhr.open("POST", url, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(JSON.stringify(data));
+}
+
+function loadShelf() {
+    var list = document.getElementById("shelf-list");
+    list.innerHTML = '<div class="loading">加载中...</div>';
+    ajaxGet("/getBookshelf", function(data) {
+        var books = data.data || [];
+        window.shelfBooks = books;
+        renderShelf(books);
+    }, function() {
+        list.innerHTML = '<div class="error">加载失败</div>';
+    });
+}
+
+function renderShelf(books) {
+    var list = document.getElementById("shelf-list");
+    var html = "";
+    for (var i = 0; i < books.length; i++) {
+        var b = books[i];
+        var coverSrc = b.coverUrl || "";
+        html += '<div class="book-card" onclick="openBook(' + i + ')">';
+        html += '<div class="book-cover">';
+        if (coverSrc) {
+            html += '<img src="' + coverSrc + '" onerror="this.parentNode.innerHTML=\'无封面\'">';
+        } else {
+            html += '无封面';
+        }
+        html += '</div>';
+        html += '<div class="book-info">';
+        html += '<div class="book-name">' + esc(b.name) + '</div>';
+        html += '<div class="book-author">' + esc(b.author) + '</div>';
+        html += '<div class="book-progress">' + esc(b.durChapterTitle || "未开始") + '</div>';
+        html += '</div>';
+        html += '<div class="clear"></div>';
+        html += '</div>';
+    }
+    if (books.length === 0) {
+        html = '<div class="empty-tip">书架为空，请在App中添加书籍</div>';
+    }
+    list.innerHTML = html;
+}
+
+function openBook(idx) {
+    var book = window.shelfBooks[idx];
+    if (!book) return;
+    currentBook = book;
+    ajaxGet("/getChapterList?url=" + encodeURIComponent(book.bookUrl), function(data) {
+        chapters = data.data || [];
+        var target = book.durChapterIndex || 0;
+        if (target >= chapters.length) target = 0;
+        readChapter(target);
+    });
+}
+
+function showToc() {
+    if (!currentBook || chapters.length === 0) return;
+    var list = document.getElementById("toc-list");
+    var html = "";
+    for (var i = 0; i < chapters.length; i++) {
+        var cls = (i === currentChapterIndex) ? "toc-item current" : "toc-item";
+        html += '<div class="' + cls + '" onclick="readChapter(' + i + ')">' + esc(chapters[i].title) + '</div>';
+    }
+    list.innerHTML = html;
+    showPage("page-toc");
+}
+
+function goShelf() {
+    loadShelf();
+    showPage("page-shelf");
+}
+
+function fmt(text) {
+    if (!text) return "<p>暂无内容</p>";
+    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    text = text.replace(/<br\s*\/?>/gi, "\n");
+    text = text.replace(/<\/p>/gi, "\n");
+    text = text.replace(/<p>/gi, "");
+    text = text.replace(/<img[^>]*>/gi, "");
+    text = text.replace(/<[^>]+>/g, "");
+    var ps = text.split("\n");
+    var html = "";
+    for (var i = 0; i < ps.length; i++) {
+        var p = ps[i].trim();
+        if (p) html += "<p>" + esc(p) + "</p>";
+    }
+    return html || "<p>暂无内容</p>";
+}
+
+function readChapter(idx) {
+    if (idx < 0 || idx >= chapters.length) return;
+    currentChapterIndex = idx;
+    var ch = chapters[idx];
+    
+    showPage("page-read");
+    document.getElementById("chapter-title").innerHTML = esc(ch.title);
+    document.getElementById("chapter-content").innerHTML = '<div class="loading">加载中...</div>';
+    
+    ajaxGet("/getBookContent?url=" + encodeURIComponent(currentBook.bookUrl) + "&index=" + idx, function(data) {
+        var content = "";
+        if (typeof data === "string") {
+            content = data;
+        } else if (data.data) {
+            content = data.data;
+        }
+        document.getElementById("chapter-content").innerHTML = fmt(content);
+        saveProgress();
+    }, function() {
+        document.getElementById("chapter-content").innerHTML = '<div class="error">加载失败</div>';
+    });
+}
+
+function prevChapter() {
+    if (currentChapterIndex > 0) {
+        readChapter(currentChapterIndex - 1);
+    }
+}
+
+function nextChapter() {
+    if (currentChapterIndex < chapters.length - 1) {
+        readChapter(currentChapterIndex + 1);
+    }
+}
+
+function saveProgress() {
+    if (!currentBook || !chapters[currentChapterIndex]) return;
+    
+    var progress = {
+        name: currentBook.name,
+        author: currentBook.author,
+        durChapterIndex: currentChapterIndex,
+        durChapterPos: 0,
+        durChapterTime: new Date().getTime(),
+        durChapterTitle: chapters[currentChapterIndex].title
+    };
+    
+    ajaxPost("/saveBookProgress", progress, function(res) {
+        if (window.shelfBooks) {
+            for (var i = 0; i < window.shelfBooks.length; i++) {
+                if (window.shelfBooks[i].name === currentBook.name && window.shelfBooks[i].author === currentBook.author) {
+                    window.shelfBooks[i].durChapterIndex = currentChapterIndex;
+                    window.shelfBooks[i].durChapterTitle = chapters[currentChapterIndex].title;
+                    break;
+                }
+            }
+        }
+    }, function() {});
+}
+
+function esc(t) {
+    if (!t) return "";
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(t));
+    return d.innerHTML;
+}
+
+loadShelf();
+</script>
 
 </body>
-
 </html>

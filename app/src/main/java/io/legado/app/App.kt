@@ -275,20 +275,22 @@ if (AppConfig.syncBookProgress) {
         RhinoWrapFactory.register(Book.ReadConfig::class.java, ReadOnlyJavaObject.factory)
     }
 
+
+
     class EventLogger : DefaultLogger() {
 
         override fun log(level: Level, msg: String) {
             super.log(level, msg)
-            LogUtils.d(TAG, msg)
+            LogUtils.d(LOGGER_TAG, msg)
         }
 
         override fun log(level: Level, msg: String, th: Throwable?) {
             super.log(level, msg, th)
-            LogUtils.d(TAG, "$msg\n${th?.stackTraceToString()}")
+            LogUtils.d(LOGGER_TAG, "$msg\n${th?.stackTraceToString()}")
         }
 
         companion object {
-            private const val TAG = "[LiveEventBus]"
+            private const val LOGGER_TAG = "[LiveEventBus]"
         }
     }
 

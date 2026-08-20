@@ -62,6 +62,12 @@ abstract class BaseBooksAdapter<VB : ViewBinding>(context: Context) :
                 if (oldItem.latestChapterTime != newItem.latestChapterTime) {
                     bundle.putBoolean("lastUpdateTime", true)
                 }
+								// 新增：进度变化
+    if (oldItem.durChapterIndex != newItem.durChapterIndex
+        || oldItem.totalChapterNum != newItem.totalChapterNum
+    ) {
+        bundle.putBoolean("progress", true)
+    }
                 if (bundle.isEmpty) return null
                 return bundle
             }

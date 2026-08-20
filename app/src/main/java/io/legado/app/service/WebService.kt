@@ -16,7 +16,6 @@ import io.legado.app.constant.NotificationId
 import io.legado.app.constant.PreferKey
 import io.legado.app.receiver.NetworkChangedListener
 import io.legado.app.utils.NetworkUtils
-import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefInt
 import io.legado.app.utils.postEvent
 import io.legado.app.utils.printOnDebug
@@ -59,7 +58,6 @@ class WebService : BaseService() {
         }
     }
 
-    private val useWakeLock = appCtx.getPrefBoolean(PreferKey.webServiceWakeLock, false)
     private val wakeLock: PowerManager.WakeLock by lazy {
         powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "legado:WebService")
             .apply {
@@ -83,10 +81,8 @@ class WebService : BaseService() {
     @SuppressLint("WakelockTimeout")
     override fun onCreate() {
         super.onCreate()
-        if (useWakeLock) {
-            wakeLock.acquire()
-            wifiLock?.acquire()
-        }
+        wakeLock.acquire()
+        wifiLock?.acquire()
         isRun = true
         upTile(true)
         networkChangedListener.register()
@@ -116,7 +112,7 @@ class WebService : BaseService() {
         when (intent?.action) {
             IntentAction.stop -> stopSelf()
             "copyHostAddress" -> sendToClip(hostAddress)
-            "serve" -> if (useWakeLock) {
+            "serve" -> {
                 wakeLock.acquire()
                 wifiLock?.acquire()
             }
@@ -128,10 +124,8 @@ class WebService : BaseService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (useWakeLock) {
-            wakeLock.release()
-            wifiLock?.release()
-        }
+        wakeLock.release()
+        wifiLock?.release()
         networkChangedListener.unRegister()
         isRun = false
         if (httpServer?.isAlive == true) {

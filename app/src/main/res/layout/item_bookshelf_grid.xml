@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/cv_content"
@@ -10,7 +11,6 @@
     android:focusable="true"
     android:scrollbars="none"
     tools:ignore="UnusedAttribute">
-
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -81,6 +81,18 @@
             android:textSize="12sp"
             tools:ignore="RtlHardcoded,RtlSymmetry" />
 
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="12dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/progress_bar_style" />
+
     </LinearLayout>
 
     <View
@@ -95,6 +107,3 @@
         tools:layout_editor_absoluteX="0dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
-
-

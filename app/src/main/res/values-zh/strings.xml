@@ -92,7 +92,7 @@
     <string name="is_loading">加载中…</string>
     <string name="retry">重试</string>
     <string name="web_service">Web 服务</string>
-    <string name="web_service_desc">用浏览器写源或看书</string>
+    <string name="web_service_desc">支持Kindle用浏览器看书</string>
     <string name="web_edit_source">Web 编辑书源</string>
     <string name="offline_cache">离线缓存</string>
     <string name="offline_cache_t">离线缓存</string>

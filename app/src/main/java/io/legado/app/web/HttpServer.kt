@@ -41,7 +41,6 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                     response.addHeader("Access-Control-Allow-Methods", "POST")
                     response.addHeader("Access-Control-Allow-Headers", "content-type")
                     response.addHeader("Access-Control-Allow-Origin", session.headers["origin"])
-                    //response.addHeader("Access-Control-Max-Age", "3600");
                     return response
                 }
 
@@ -75,12 +74,24 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                     val parameters = session.parameters
 
                     returnData = when (uri) {
+                        "/getBookContent" -> {
+                            val result = BookController.getBookContent(parameters)
+                            val content = result.data
+                            if (content is String) {
+                                val filtered = content.replace(
+                                    Regex("""<img[^>]*type":"(?!god")[^"]*"[^>]*>""", RegexOption.IGNORE_CASE),
+                                    ""
+                                )
+                                result.setData(filtered)
+                            }
+                            result
+                        }
+
                         "/getBookSource" -> BookSourceController.getSource(parameters)
                         "/getBookSources" -> BookSourceController.sources
                         "/getBookshelf" -> BookController.bookshelf
                         "/getChapterList" -> BookController.getChapterList(parameters)
                         "/refreshToc" -> BookController.refreshToc(parameters)
-                        "/getBookContent" -> BookController.getBookContent(parameters)
                         "/cover" -> BookController.getCover(parameters)
                         "/image" -> BookController.getImg(parameters)
                         "/getReadConfig" -> BookController.getWebReadConfig()
@@ -99,6 +110,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                     uri += "index.html"
                 return assetsWeb.getResponse(uri)
             }
+
 
             val response = if (returnData.data is Bitmap) {
                 val outputStream = ByteArrayOutputStream()

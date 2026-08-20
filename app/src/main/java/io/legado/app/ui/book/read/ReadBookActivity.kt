@@ -1,5 +1,7 @@
 package io.legado.app.ui.book.read
 
+import io.legado.app.utils.EPDManager
+
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -15,10 +17,15 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.SearchEvent
 import android.view.View
+import android.view.Window
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -324,6 +331,7 @@ private fun triggerTurnPage() {
         window.setBackgroundDrawable(null)
         upScreenTimeOut()
         ReadBook.register(this)
+        interceptVolumeKeyAtWindowLevel()
         onBackPressedDispatcher.addCallback(this) {
             if (isShowingSearchResult) {
                 exitSearchMenu()
@@ -391,6 +399,11 @@ private fun triggerTurnPage() {
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
 override fun onResume() {
     super.onResume()
+    // 初始化墨水屏管理 + 读取用户选择的刷新模式
+        EPDManager.init(this)
+    val refreshMode = getPrefString("eink_refresh_mode", "12") ?: "12"
+EPDManager.setMode(refreshMode)
+
     // 初始化加速度计晃动翻页
     sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
     accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -423,6 +436,9 @@ override fun onResume() {
 }
 
     override fun onPause() {
+		   // 退出阅读切回自动模式
+        EPDManager.setMode(EPDManager.Mode.EPD_AUTO)
+    EPDManager.release()
     // 注销传感器
     sensorManager.unregisterListener(this)
     
@@ -703,7 +719,7 @@ override fun onResume() {
         return onCompatOptionsItemSelected(item)
     }
 
-    /**
+        /**
      * 按键拦截,显示菜单
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -723,6 +739,7 @@ override fun onResume() {
         }
         return super.dispatchKeyEvent(event)
     }
+
 
     /**
      * 鼠标滚轮事件
@@ -744,8 +761,8 @@ override fun onResume() {
         return super.onGenericMotionEvent(event)
     }
 
-    /**
-     * 按键事件
+        /**
+     * 按键事件 —— 音量键已移到 dispatchKeyEvent 处理
      */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (menuLayoutIsVisible) {
@@ -764,14 +781,6 @@ override fun onResume() {
             }
         }
         when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> if (volumeKeyPage(PageDirection.PREV, longPress)) {
-                return true
-            }
-
-            KeyEvent.KEYCODE_VOLUME_DOWN -> if (volumeKeyPage(PageDirection.NEXT, longPress)) {
-                return true
-            }
-
             KeyEvent.KEYCODE_PAGE_UP -> {
                 handleKeyPage(PageDirection.PREV, longPress)
                 return true
@@ -791,20 +800,14 @@ override fun onResume() {
         return super.onKeyDown(keyCode, event)
     }
 
-    /**
-     * 松开按键事件
+
+        /**
+     * 松开按键事件 —— 音量键已移到 dispatchKeyEvent 处理
      */
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (volumeKeyPage(PageDirection.NONE, false)) {
-                    return true
-                }
-            }
-
-        }
         return super.onKeyUp(keyCode, event)
     }
+
 
     /**
      * view触摸,文字选择
@@ -1903,6 +1906,116 @@ override fun onResume() {
                 handler.postDelayed(screenOffRunnable, screenTimeOut)
             } else {
                 keepScreenOn(false)
+            }
+        }
+    }
+
+    /**
+     * 在 Window.Callback 层面拦截音量键，比 Activity.dispatchKeyEvent 更低层级
+     * 华为/鸿蒙等 ROM 在 Activity 层之上显示音量条，必须在此拦截
+     */
+    private fun interceptVolumeKeyAtWindowLevel() {
+        val originalCallback = window.callback
+        window.callback = object : Window.Callback {
+            override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+                if (event?.keyCode == KeyEvent.KEYCODE_VOLUME_UP || 
+                    event?.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                    if (event.action == KeyEvent.ACTION_DOWN) {
+                        val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
+                            PageDirection.PREV else PageDirection.NEXT
+                        volumeKeyPage(direction, false)
+                    }
+                    return true  // 在 Window 层面消费，鸿蒙也无法显示音量条
+                }
+                return originalCallback?.dispatchKeyEvent(event) ?: false
+            }
+
+            override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+                return originalCallback?.dispatchTouchEvent(event) ?: false
+            }
+
+            override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
+                return originalCallback?.dispatchTrackballEvent(event) ?: false
+            }
+
+            override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
+                return originalCallback?.dispatchGenericMotionEvent(event) ?: false
+            }
+
+            override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
+                return originalCallback?.dispatchPopulateAccessibilityEvent(event) ?: false
+            }
+
+            override fun onCreatePanelView(featureId: Int): View? {
+                return originalCallback?.onCreatePanelView(featureId)
+            }
+
+            override fun onCreatePanelMenu(featureId: Int, menu: Menu): Boolean {
+                return originalCallback?.onCreatePanelMenu(featureId, menu) ?: false
+            }
+
+            override fun onPreparePanel(featureId: Int, view: View?, menu: Menu): Boolean {
+                return originalCallback?.onPreparePanel(featureId, view, menu) ?: false
+            }
+
+            override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+                return originalCallback?.onMenuOpened(featureId, menu) ?: false
+            }
+
+            override fun onMenuItemSelected(featureId: Int, item: MenuItem): Boolean {
+                return originalCallback?.onMenuItemSelected(featureId, item) ?: false
+            }
+
+            override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
+                return originalCallback?.dispatchKeyShortcutEvent(event) ?: false
+            }
+
+            override fun onWindowAttributesChanged(attrs: android.view.WindowManager.LayoutParams?) {
+                originalCallback?.onWindowAttributesChanged(attrs)
+            }
+
+            override fun onContentChanged() {
+                originalCallback?.onContentChanged()
+            }
+
+            override fun onWindowFocusChanged(hasFocus: Boolean) {
+                originalCallback?.onWindowFocusChanged(hasFocus)
+            }
+
+            override fun onAttachedToWindow() {
+                originalCallback?.onAttachedToWindow()
+            }
+
+            override fun onDetachedFromWindow() {
+                originalCallback?.onDetachedFromWindow()
+            }
+
+            override fun onPanelClosed(featureId: Int, menu: Menu) {
+                originalCallback?.onPanelClosed(featureId, menu)
+            }
+
+            override fun onSearchRequested(): Boolean {
+                return originalCallback?.onSearchRequested() ?: false
+            }
+
+            override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
+                return originalCallback?.onSearchRequested(searchEvent) ?: false
+            }
+
+            override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
+                return originalCallback?.onWindowStartingActionMode(callback)
+            }
+
+            override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+                return originalCallback?.onWindowStartingActionMode(callback, type)
+            }
+
+            override fun onActionModeStarted(mode: ActionMode?) {
+                originalCallback?.onActionModeStarted(mode)
+            }
+
+            override fun onActionModeFinished(mode: ActionMode?) {
+                originalCallback?.onActionModeFinished(mode)
             }
         }
     }

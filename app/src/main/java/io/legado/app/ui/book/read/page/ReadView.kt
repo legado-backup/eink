@@ -623,13 +623,18 @@ class ReadView(context: Context, attrs: AttributeSet) :
         }
     }
 
-    fun onScrollAnimStart() {
-        autoPager.pause()
-    }
 
-    fun onScrollAnimStop() {
-        autoPager.resume()
-    }
+
+
+    fun onScrollAnimStart() {
+    autoPager.pause()
+    
+}
+
+fun onScrollAnimStop() {
+    autoPager.resume()
+    
+}
 
     fun onPageChange() {
         autoPager.reset()
@@ -681,4 +686,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
         fun upSystemUiVisibility()
         fun sureNewProgress(progress: BookProgress)
     }
+		
+		
+		
 }

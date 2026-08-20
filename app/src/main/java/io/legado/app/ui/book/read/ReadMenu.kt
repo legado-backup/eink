@@ -37,6 +37,7 @@ import io.legado.app.lib.theme.primaryColor
 import io.legado.app.lib.theme.primaryTextColor
 import io.legado.app.model.ReadBook
 import io.legado.app.model.SourceCallBack
+import io.legado.app.ui.book.ai.AiChatActivity
 import io.legado.app.ui.browser.WebViewActivity
 import io.legado.app.ui.widget.seekbar.SeekBarChangeListener
 import io.legado.app.utils.ColorUtils
@@ -174,9 +175,9 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun initView(reset: Boolean = false) = binding.run {
         if (AppConfig.isNightTheme) {
-            fabNightTheme.setImageResource(R.drawable.ic_daytime)
+            fabNightTheme.setImageResource(R.drawable.ic_7)
         } else {
-            fabNightTheme.setImageResource(R.drawable.ic_brightness)
+            fabNightTheme.setImageResource(R.drawable.ic_7)
         }
         initAnimation()
         tvCustomBtn.setColorFilter(context.accentColor)
@@ -557,10 +558,11 @@ class ReadMenu @JvmOverloads constructor(
         //替换
         fabReplaceRule.setOnClickListener { callBack.openReplaceRule() }
 
-        //夜间模式
+        //AI 助手
         fabNightTheme.setOnClickListener {
-            AppConfig.isNightTheme = !AppConfig.isNightTheme
-            ThemeConfig.applyDayNight(context)
+            runMenuOut {
+                AiChatActivity.start(context)
+            }
         }
 
         //上一章

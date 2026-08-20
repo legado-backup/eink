@@ -4,6 +4,39 @@
 	<string-array name="server_type">
 		<item>WEBDAV</item>
 	</string-array>
+	
+	<string-array name="eink_mode_name">
+    <item>0 全局自动</item>
+    <item>2 全刷清残影</item>
+    <item>3 GL16全刷</item>
+    <item>4 GLR16全刷</item>
+    <item>5 GLD16全刷</item>
+    <item>6 GCC16全刷</item>
+    <item>7 局部图文优选</item>
+    <item>8 GL16局部</item>
+    <item>9 GLR16局部</item>
+    <item>10 GLD16局部</item>
+    <item>11 GCC16局部</item>
+    <item>12 A2小说极速</item>
+    <item>13 A2图片抖动</item>
+    <item>14 DU高速黑白</item>
+</string-array>
+<string-array name="eink_mode_val">
+    <item>0</item>
+    <item>2</item>
+    <item>3</item>
+    <item>4</item>
+    <item>5</item>
+    <item>6</item>
+    <item>7</item>
+    <item>8</item>
+    <item>9</item>
+    <item>10</item>
+    <item>11</item>
+    <item>12</item>
+    <item>13</item>
+    <item>14</item>
+</string-array>
 
 	<string-array name="book_type">
 		<item>Text</item>

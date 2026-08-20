@@ -2,6 +2,7 @@
 
 package io.legado.app.ui.main
 
+import android.content.Intent
 import android.graphics.Paint
 import android.graphics.PaintFlagsDrawFilter
 import android.os.Bundle
@@ -36,15 +37,16 @@ import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.about.CrashLogsDialog
+import io.legado.app.ui.about.ReadRecordActivity
 import io.legado.app.ui.association.ImportBookSourceDialog
 import io.legado.app.ui.association.ImportReplaceRuleDialog
 import io.legado.app.ui.association.ImportRssSourceDialog
+import io.legado.app.ui.book.read.config.LanTransferActivity
 import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.BookshelfFragment1
 import io.legado.app.ui.main.bookshelf.style2.BookshelfFragment2
 import io.legado.app.ui.main.explore.ExploreFragment
 import io.legado.app.ui.main.my.MyFragment
-import io.legado.app.ui.main.rss.RssFragment
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.text.BadgeView
 import io.legado.app.utils.isCreated
@@ -74,12 +76,12 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     BottomNavigationView.OnNavigationItemSelectedListener,
     BottomNavigationView.OnNavigationItemReselectedListener,
     MainViewModel.CallBack {
-		
-		// ==========墨水屏全局抗锯齿==========
-internal val globalAaFilter = PaintFlagsDrawFilter(
-    0,
-    Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
-)
+
+    // ==========墨水屏全局抗锯齿==========
+    internal val globalAaFilter = PaintFlagsDrawFilter(
+        0,
+        Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
+    )
 
     override val binding by viewBinding(ActivityMainBinding::inflate)
     override val viewModel by viewModels<MainViewModel>()
@@ -87,16 +89,15 @@ internal val globalAaFilter = PaintFlagsDrawFilter(
     private val idBookshelf1 = 11
     private val idBookshelf2 = 12
     private val idExplore = 1
-    private val idRss = 2
-    private val idMy = 3
+    private val idMy = 2
     private var exitTime: Long = 0
     private var bookshelfReselected: Long = 0
     private var exploreReselected: Long = 0
     private var pagePosition = 0
     private val fragmentMap = hashMapOf<Int, Fragment>()
-    private var bottomMenuCount = 4
+    private var bottomMenuCount = 3
     private val EXIT_INTERVAL = 2000L
-    private val realPositions = arrayOf(idBookshelf, idExplore, idRss, idMy)
+    private val realPositions = arrayOf(idBookshelf, idExplore, idMy)
     private val adapter by lazy {
         TabFragmentPageAdapter(supportFragmentManager)
     }
@@ -162,17 +163,25 @@ internal val globalAaFilter = PaintFlagsDrawFilter(
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean = binding.run {
         when (item.itemId) {
-            R.id.menu_bookshelf ->
-                viewPagerMain.setCurrentItem(0, false)
-
-            R.id.menu_discovery ->
+            R.id.menu_bookshelf -> {
+                viewPagerMain.setCurrentItem(realPositions.indexOf(idBookshelf), false)
+            }
+            R.id.menu_discovery -> {
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idExplore), false)
-
-            R.id.menu_rss ->
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idRss), false)
-
-            R.id.menu_my_config ->
+            }
+            R.id.menu_my_config -> {
                 viewPagerMain.setCurrentItem(realPositions.indexOf(idMy), false)
+            }
+            R.id.menu_read_record -> {
+                startActivity(Intent(this@MainActivity, ReadRecordActivity::class.java))
+                // 不切换ViewPager，也不改变选中状态
+                return@run false
+            }
+            R.id.menu_lan_transfer -> {
+                startActivity(Intent(this@MainActivity, LanTransferActivity::class.java))
+                // 不切换ViewPager，也不改变选中状态
+                return@run false
+            }
         }
         return false
     }
@@ -186,7 +195,6 @@ internal val globalAaFilter = PaintFlagsDrawFilter(
                     (fragmentMap[getFragmentId(0)] as? BaseBookshelfFragment)?.gotoTop()
                 }
             }
-
             R.id.menu_discovery -> {
                 if (System.currentTimeMillis() - exploreReselected > 300) {
                     exploreReselected = System.currentTimeMillis()
@@ -194,51 +202,66 @@ internal val globalAaFilter = PaintFlagsDrawFilter(
                     (fragmentMap[1] as? ExploreFragment)?.compressExplore()
                 }
             }
+            R.id.menu_read_record -> {
+                startActivity(Intent(this, ReadRecordActivity::class.java))
+            }
+            R.id.menu_lan_transfer -> {
+                startActivity(Intent(this, LanTransferActivity::class.java))
+            }
         }
     }
 
-    
+    private fun initView() = binding.run {
+        viewPagerMain.setEdgeEffectColor(primaryColor)
+        viewPagerMain.offscreenPageLimit = 3
+        viewPagerMain.adapter = adapter
+        viewPagerMain.addOnPageChangeListener(PageChangeCallback())
+        bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
+        bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
 
-private fun initView() = binding.run {
+        // 隐藏文字，只显示图标
+        bottomNavigationView.labelVisibilityMode = BottomNavigationView.LABEL_VISIBILITY_UNLABELED
 
+        // 设置图标始终为黑色，不随选中状态变色
+        // 使用ColorStateList让所有状态都显示黑色
+        val blackColorList = android.content.res.ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf(-android.R.attr.state_checked),
+                intArrayOf()
+            ),
+            intArrayOf(
+                android.graphics.Color.BLACK,   // 选中状态 = 黑色
+                android.graphics.Color.BLACK,   // 未选中状态 = 黑色
+                android.graphics.Color.BLACK    // 默认状态 = 黑色
+            )
+        )
+        bottomNavigationView.itemIconTintList = blackColorList
+        bottomNavigationView.itemTextColor = blackColorList
 
+        // 1. 移除边框背景
+        if (AppConfig.isEInkMode) {
+            bottomNavigationView.background = null
+        }
 
+        // 2. 移除 elevation
+        bottomNavigationView.elevation = 0f
 
-    viewPagerMain.setEdgeEffectColor(primaryColor)
-    viewPagerMain.offscreenPageLimit = 3
-    viewPagerMain.adapter = adapter
-    viewPagerMain.addOnPageChangeListener(PageChangeCallback())
-    bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
-    bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
+        // 3. 手动遍历移除内部所有子View的分割线背景
+        for (i in 0 until bottomNavigationView.childCount) {
+            val child = bottomNavigationView.getChildAt(i)
+            if (child is com.google.android.material.bottomnavigation.BottomNavigationMenuView) {
+                child.background = null
+                child.setPadding(0, 0, 0, 0)
+            }
+        }
 
-    // 1. 移除边框背景
-    if (AppConfig.isEInkMode) {
-        // 直接设置透明背景，去掉自带的顶边黑框
-        bottomNavigationView.background = null
-    }
-
-    // 2. 移除 elevation（阴影和分割线的来源）
-    bottomNavigationView.elevation = 0f
-
-    // 3. 手动遍历移除内部所有子View的分割线背景
-    for (i in 0 until bottomNavigationView.childCount) {
-        val child = bottomNavigationView.getChildAt(i)
-        if (child is com.google.android.material.bottomnavigation.BottomNavigationMenuView) {
-            child.background = null
-            child.setPadding(0, 0, 0, 0)
+        bottomNavigationView.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
+            val height = windowInsets.navigationBarHeight
+            view.bottomPadding = height
+            windowInsets.inset(0, 0, 0, height)
         }
     }
-
-    bottomNavigationView.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
-        val height = windowInsets.navigationBarHeight
-        view.bottomPadding = height
-        windowInsets.inset(0, 0, 0, height)
-    }
-		
-		
-}
-
-    
 
     /**
      * 用户隐私与协议
@@ -419,19 +442,13 @@ private fun initView() = binding.run {
 
     private fun upBottomMenu() {
         val showDiscovery = AppConfig.showDiscovery
-        val showRss = AppConfig.showRSS
         binding.bottomNavigationView.menu.let { menu ->
             menu.findItem(R.id.menu_discovery).isVisible = showDiscovery
-            menu.findItem(R.id.menu_rss).isVisible = showRss
         }
         var index = 0
         if (showDiscovery) {
             index++
             realPositions[index] = idExplore
-        }
-        if (showRss) {
-            index++
-            realPositions[index] = idRss
         }
         index++
         realPositions[index] = idMy
@@ -445,11 +462,6 @@ private fun initView() = binding.run {
             "explore" -> if (AppConfig.showDiscovery) {
                 binding.viewPagerMain.setCurrentItem(realPositions.indexOf(idExplore), false)
             }
-
-            "rss" -> if (AppConfig.showRSS) {
-                binding.viewPagerMain.setCurrentItem(realPositions.indexOf(idRss), false)
-            }
-
             "my" -> binding.viewPagerMain.setCurrentItem(realPositions.indexOf(idMy), false)
         }
     }
@@ -463,12 +475,10 @@ private fun initView() = binding.run {
     }
 
     private inner class PageChangeCallback : ViewPager.SimpleOnPageChangeListener() {
-
         override fun onPageSelected(position: Int) {
             pagePosition = position
             binding.bottomNavigationView.menu[realPositions[position]].isChecked = true
         }
-
     }
 
     @Suppress("DEPRECATION")
@@ -486,7 +496,6 @@ private fun initView() = binding.run {
             if ((fragmentId == idBookshelf1 && any is BookshelfFragment1)
                 || (fragmentId == idBookshelf2 && any is BookshelfFragment2)
                 || (fragmentId == idExplore && any is ExploreFragment)
-                || (fragmentId == idRss && any is RssFragment)
                 || (fragmentId == idMy && any is MyFragment)
             ) {
                 return POSITION_UNCHANGED
@@ -499,7 +508,7 @@ private fun initView() = binding.run {
                 idBookshelf1 -> BookshelfFragment1(position)
                 idBookshelf2 -> BookshelfFragment2(position)
                 idExplore -> ExploreFragment(position)
-                idRss -> RssFragment(position)
+                idMy -> MyFragment(position)
                 else -> MyFragment(position)
             }
         }
@@ -517,7 +526,6 @@ private fun initView() = binding.run {
             fragmentMap[getId(position)] = fragment
             return fragment
         }
-
     }
 
     override fun openImportUi(type:Int, source: String) {
@@ -533,5 +541,4 @@ private fun initView() = binding.run {
             )
         }
     }
-
 }

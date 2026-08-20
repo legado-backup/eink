@@ -45,8 +45,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     var clickActionBR = appCtx.getPrefInt(PreferKey.clickActionBR, 1)
     var themeMode = "3"  // 强制设置为墨水屏主题
     var useDefaultCover = appCtx.getPrefBoolean(PreferKey.useDefaultCover, false)
-    var optimizeRender = CanvasRecorderFactory.isSupport
-            && appCtx.getPrefBoolean(PreferKey.optimizeRender, false)
+    var optimizeRender = CanvasRecorderFactory.isSupport  // ← 强制开启，忽略用户设置
     var recordLog = appCtx.getPrefBoolean(PreferKey.recordLog)
     var editFontScale = appCtx.getPrefInt(PreferKey.editFontScale, 16)
     var editNonPrintable = appCtx.getPrefInt(PreferKey.editNonPrintable, 0)
@@ -127,8 +126,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             PreferKey.useDefaultCover -> useDefaultCover =
                 appCtx.getPrefBoolean(PreferKey.useDefaultCover, false)
 
-            PreferKey.optimizeRender -> optimizeRender = CanvasRecorderFactory.isSupport
-                    && appCtx.getPrefBoolean(PreferKey.optimizeRender, false)
+            PreferKey.optimizeRender -> optimizeRender = CanvasRecorderFactory.isSupport  // ← 强制开启，忽略用户设置
 
             PreferKey.recordLog -> recordLog = appCtx.getPrefBoolean(PreferKey.recordLog)
 
