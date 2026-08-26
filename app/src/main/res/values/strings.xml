@@ -495,6 +495,14 @@
     <string name="files_tree">Directory</string>
     <string name="intelligent_import">Intelligent import</string>
     <string name="discovery">Discovery</string>
+    <string name="discovery_source_filter">Choose discovery source</string>
+    <string name="discovery_choose_category">Choose a category to browse books</string>
+    <string name="discovery_no_books">No books found in this category</string>
+    <string name="discovery_load_failed">Loading failed: %s</string>
+    <string name="discovery_channel">Channel</string>
+    <string name="discovery_category">Category</string>
+    <string name="discovery_filter">Filter</string>
+    <string name="discovery_shortcut">Shortcut</string>
     <string name="switch_display_style">Switch display styles</string>
     <string name="import_per">Import local books requires storage permission</string>
     <string name="night_theme">Night Theme</string>

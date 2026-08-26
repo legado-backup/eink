@@ -790,6 +790,30 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         }
     }
 
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        when (keyCode) {
+            android.view.KeyEvent.KEYCODE_VOLUME_UP -> {
+                // 音量上键 → 上一页
+                if (currentDisplayPage > 1) {
+                    currentDisplayPage--
+                    refreshCurrentPage()
+                }
+                return true
+            }
+            android.view.KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                // 音量下键 → 下一页
+                if (currentDisplayPage < totalDisplayPage) {
+                    currentDisplayPage++
+                    refreshCurrentPage()
+                } else if (hasMoreData && !isLoading) {
+                    loadNextPageData()
+                }
+                return true
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun finish() {
         if (searchView.hasFocus()) {
             searchView.clearFocus()

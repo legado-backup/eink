@@ -117,6 +117,34 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
         }
     }
 
+    // ========== 左右滑动翻页 ==========
+    private var touchStartX = 0f
+    private var touchStartY = 0f
+    private val swipeThreshold = 80f
+
+    override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+        event?.let {
+            when (it.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    touchStartX = it.x
+                    touchStartY = it.y
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = it.x - touchStartX
+                    val dy = it.y - touchStartY
+                    if (kotlin.math.abs(dx) > swipeThreshold && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                        if (dx < 0) {
+                            goToNextPage()
+                        } else {
+                            goToPrevPage()
+                        }
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(event)
+    }
+
     // ========== FilePickerDialog 回调 ==========
     override fun onResult(data: Intent) {
         val uri = data.data ?: return
@@ -384,7 +412,6 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
                 cancelEdit()
             }
         }
-
 
         return root
     }

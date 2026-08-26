@@ -492,6 +492,14 @@
     <string name="files_tree">手机目录</string>
     <string name="intelligent_import">智能导入</string>
     <string name="discovery">发现</string>
+    <string name="discovery_source_filter">选择发现书源</string>
+    <string name="discovery_choose_category">选择上方分类，浏览书籍</string>
+    <string name="discovery_no_books">该分类暂时没有书籍</string>
+    <string name="discovery_load_failed">加载失败：%s</string>
+    <string name="discovery_channel">频道</string>
+    <string name="discovery_category">分类</string>
+    <string name="discovery_filter">筛选</string>
+    <string name="discovery_shortcut">快捷</string>
     <string name="switch_display_style">切换显示样式</string>
     <string name="import_per">导入本地书籍需要存储权限</string>
     <string name="night_theme">夜间模式</string>
