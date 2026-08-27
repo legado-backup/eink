@@ -13,7 +13,12 @@ data class AppReleaseInfo(
     val downloadUrl: String,
     val assetUrl: String
 ) {
-    val versionName: String = name.split("_").getOrNull(2)?.dropLast(2) ?: ""
+    val versionName: String
+        get() {
+            val nameWithoutExt = name.removeSuffix(".apk")
+            val parts = nameWithoutExt.split("_")
+            return parts.firstOrNull { it.matches(Regex("\\d+(\\.\\d+)+")) } ?: ""
+        }
 }
 
 enum class AppVariant {
@@ -24,9 +29,8 @@ enum class AppVariant {
     UNKNOWN;
 
     fun isBeta(): Boolean {
-        return this == BETA_RELEASE || this == BETA_RELEASEA
+        return this == BETA_RELEASE || this == BETA_RELEASEA || this == BETA_RELEASES
     }
-
 }
 
 @Keep
@@ -43,6 +47,7 @@ data class GithubRelease(
             .map { it.assetToAppReleaseInfo(isPreRelease, body) }
     }
 }
+
 @Keep
 data class GiteeRelease(
     val assets: List<GiteeAsset>?,
@@ -106,12 +111,10 @@ data class GiteeAsset(
         val appVariant = when {
             name.contains("releaseA") -> AppVariant.BETA_RELEASEA
             name.contains("releaseS") -> AppVariant.BETA_RELEASES
-            name.contains("release") -> AppVariant.BETA_RELEASE //preRelease &&
+            name.contains("release") -> AppVariant.BETA_RELEASE
             else -> AppVariant.OFFICIAL
         }
 
         return AppReleaseInfo(appVariant, 0, note, name, apkUrl, "")
     }
 }
-
-

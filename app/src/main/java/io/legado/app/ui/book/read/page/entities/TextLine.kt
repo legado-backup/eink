@@ -3,7 +3,9 @@ package io.legado.app.ui.book.read.page.entities
 import android.annotation.SuppressLint
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
+import android.graphics.Paint
 import android.graphics.Paint.FontMetrics
+import android.graphics.Path
 import android.os.Build
 import android.text.TextPaint
 import androidx.annotation.Keep
@@ -231,25 +233,64 @@ data class TextLine(
         val paint = ChapterProvider.contentPaint
         val distance = (ChapterProvider.lineSpacingExtra * 10 - 11).coerceIn(-1f, 10f)
         val lineY = height + distance.dpToPx()
-        if (underlineMode == 1) {
-            canvas.drawLine(
-                lineStart + indentWidth,
-                lineY,
-                lineEnd,
-                lineY,
-                paint
-            )
-        } else if (underlineMode == 2) { // 虚线
-            val dashPathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
-            val dashPath = TextPaint(paint)
-            dashPath.pathEffect = dashPathEffect
-            canvas.drawLine(
-                lineStart + indentWidth,
-                lineY,
-                lineEnd,
-                lineY,
-                dashPath
-            )
+        when (underlineMode) {
+            1 -> { // 实线
+                canvas.drawLine(
+                    lineStart + indentWidth,
+                    lineY,
+                    lineEnd,
+                    lineY,
+                    paint
+                )
+            }
+            2 -> { // 虚线
+                val dashPathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
+                val dashPath = TextPaint(paint)
+                dashPath.pathEffect = dashPathEffect
+                canvas.drawLine(
+                    lineStart + indentWidth,
+                    lineY,
+                    lineEnd,
+                    lineY,
+                    dashPath
+                )
+            }
+            3 -> { // 点线
+                val dotPathEffect = DashPathEffect(floatArrayOf(3f, 6f), 0f)
+                val dotPath = TextPaint(paint)
+                dotPath.pathEffect = dotPathEffect
+                canvas.drawLine(
+                    lineStart + indentWidth,
+                    lineY,
+                    lineEnd,
+                    lineY,
+                    dotPath
+                )
+            }
+            4 -> { // 波浪线
+                val path = Path()
+                val startX = lineStart + indentWidth
+                val endX = lineEnd
+                val waveHeight = 3f.dpToPx()
+                val waveWidth = 8f.dpToPx()
+
+                path.moveTo(startX, lineY)
+                var x = startX
+                while (x < endX) {
+                    path.quadTo(
+                        x + waveWidth / 2,
+                        lineY - waveHeight,
+                        x + waveWidth,
+                        lineY
+                    )
+                    x += waveWidth
+                }
+
+                val wavePaint = Paint(paint).apply {
+                    style = Paint.Style.STROKE
+                }
+                canvas.drawPath(path, wavePaint)
+            }
         }
     }
 
