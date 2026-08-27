@@ -777,7 +777,7 @@ class TextChapterLayout(
             stringBuilder.append(lineText)
             val textPage = pendingTextPage
             textPage.addLine(textLine)
-            durY += lineHeight * lineSpacingExtra //行距
+            durY += lineHeight * lineSpacingExtra + if (ReadBookConfig.underlineMode != 0) ChapterProvider.underlineExtraHeight else 0f //行距
             if (textPage.height < durY) {
                 textPage.height = durY
             }
@@ -1018,7 +1018,7 @@ class TextChapterLayout(
             textLine.upTopBottom(durY, textHeight, fontMetrics)
             val textPage = pendingTextPage
             textPage.addLine(textLine)
-            durY += textHeight * lineSpacingExtra
+            durY += textHeight * lineSpacingExtra + if (!isTitle && ReadBookConfig.underlineMode != 0) ChapterProvider.underlineExtraHeight else 0f
             if (textPage.height < durY) {
                 textPage.height = durY
             }

@@ -117,6 +117,10 @@ object ChapterProvider {
     var contentPaintFontMetrics = FontMetrics()
 
     @JvmStatic
+    var underlineExtraHeight = 0f
+        private set
+
+    @JvmStatic
     var typeface: Typeface? = Typeface.DEFAULT
         private set
 
@@ -201,6 +205,7 @@ object ChapterProvider {
         contentPaintTextHeight = contentPaint.textHeight
         titlePaintFontMetrics = titlePaint.fontMetrics
         contentPaintFontMetrics = contentPaint.fontMetrics
+        underlineExtraHeight = if (ReadBookConfig.underlineMode != 0) 5f.dpToPx() else 0f
         upLayout()
     }
 
@@ -338,8 +343,7 @@ object ChapterProvider {
         } else {
             viewWidth - paddingLeft - paddingRight
         }
-        //留1dp画最后一行下划线
-        visibleHeight = viewHeight - paddingTop - paddingBottom
+        visibleHeight = viewHeight - paddingTop - paddingBottom - underlineExtraHeight.toInt() - underlineExtraHeight.toInt()
         visibleRight = viewWidth - paddingRight
         visibleBottom = paddingTop + visibleHeight
 
@@ -367,8 +371,7 @@ object ChapterProvider {
         } else {
             viewWidth - paddingLeft - paddingRight
         }
-        //留1dp画最后一行下划线
-        visibleHeight = viewHeight - paddingTop - paddingBottom
+        visibleHeight = viewHeight - paddingTop - paddingBottom - underlineExtraHeight.toInt() - underlineExtraHeight.toInt()
         visibleRight = viewWidth - paddingRight
         visibleBottom = paddingTop + visibleHeight
     }

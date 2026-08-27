@@ -228,66 +228,56 @@ data class TextLine(
 
     /**
      * 绘制下划线
+     * 距离文字底部 2dp，线宽 1dp，距离下行顶部 2dp
+     * 行高已自动增加 5dp (2+1+2)
      */
     private fun drawUnderline(canvas: Canvas, underlineMode: Int) {
         val paint = ChapterProvider.contentPaint
-        val distance = (ChapterProvider.lineSpacingExtra * 10 - 11).coerceIn(-1f, 10f)
-        val lineY = height + distance.dpToPx()
+        val fontMetrics = paint.fontMetrics
+        val strokeWidth = 1f.dpToPx()
+        val baseY = lineBase - lineTop
+        val lineY = baseY + fontMetrics.descent + 2f.dpToPx() + strokeWidth / 2
+        val startX = lineStart + indentWidth + 0.5f.dpToPx()
+        val endX = lineEnd - 3f.dpToPx()
+
         when (underlineMode) {
             1 -> { // 实线
-                canvas.drawLine(
-                    lineStart + indentWidth,
-                    lineY,
-                    lineEnd,
-                    lineY,
-                    paint
-                )
+                val boldPaint = Paint(paint).apply { this.strokeWidth = strokeWidth }
+                canvas.drawLine(startX, lineY, endX, lineY, boldPaint)
             }
             2 -> { // 虚线
-                val dashPathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
-                val dashPath = TextPaint(paint)
-                dashPath.pathEffect = dashPathEffect
-                canvas.drawLine(
-                    lineStart + indentWidth,
-                    lineY,
-                    lineEnd,
-                    lineY,
-                    dashPath
-                )
+                val dashPath = TextPaint(paint).apply {
+                    pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
+                    this.strokeWidth = strokeWidth
+                }
+                canvas.drawLine(startX, lineY, endX, lineY, dashPath)
             }
             3 -> { // 点线
-                val dotPathEffect = DashPathEffect(floatArrayOf(3f, 6f), 0f)
-                val dotPath = TextPaint(paint)
-                dotPath.pathEffect = dotPathEffect
-                canvas.drawLine(
-                    lineStart + indentWidth,
-                    lineY,
-                    lineEnd,
-                    lineY,
-                    dotPath
-                )
+                val dotPath = TextPaint(paint).apply {
+                    pathEffect = DashPathEffect(floatArrayOf(3f, 6f), 0f)
+                    this.strokeWidth = strokeWidth
+                }
+                canvas.drawLine(startX, lineY, endX, lineY, dotPath)
             }
             4 -> { // 波浪线
                 val path = Path()
-                val startX = lineStart + indentWidth
-                val endX = lineEnd
                 val waveHeight = 3f.dpToPx()
                 val waveWidth = 8f.dpToPx()
+                val waveBaseY = lineY
 
-                path.moveTo(startX, lineY)
+                path.moveTo(startX, waveBaseY)
                 var x = startX
+                var goingUp = true
                 while (x < endX) {
-                    path.quadTo(
-                        x + waveWidth / 2,
-                        lineY - waveHeight,
-                        x + waveWidth,
-                        lineY
-                    )
+                    val controlY = if (goingUp) waveBaseY - waveHeight else waveBaseY + waveHeight
+                    path.quadTo(x + waveWidth / 2, controlY, x + waveWidth, waveBaseY)
+                    goingUp = !goingUp
                     x += waveWidth
                 }
 
                 val wavePaint = Paint(paint).apply {
                     style = Paint.Style.STROKE
+                    this.strokeWidth = strokeWidth
                 }
                 canvas.drawPath(path, wavePaint)
             }
