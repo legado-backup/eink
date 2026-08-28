@@ -15,9 +15,9 @@ data class AppReleaseInfo(
 ) {
     val versionName: String
         get() {
-            val nameWithoutExt = name.removeSuffix(".apk")
+            val nameWithoutExt = name.substringBeforeLast(".")
             val parts = nameWithoutExt.split("_")
-            return parts.firstOrNull { it.matches(Regex("\\d+(\\.\\d+)+")) } ?: ""
+            return parts.firstOrNull { it.matches(Regex("""\d+(\.\d+)+""")) } ?: ""
         }
 }
 
@@ -104,7 +104,7 @@ data class GiteeAsset(
     val name: String
 ) {
     val isValid: Boolean
-        get() = apkUrl.contains(".apk")
+        get() = apkUrl.contains(".apk") || apkUrl.contains(".zip")
 
     fun assetToAppReleaseInfo(preRelease: Boolean, note: String): AppReleaseInfo {
 
