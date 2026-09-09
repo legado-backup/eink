@@ -77,10 +77,10 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     BottomNavigationView.OnNavigationItemReselectedListener,
     MainViewModel.CallBack {
 
-    // ==========墨水屏全局抗锯齿==========
+    // ==========墨水屏全局抗锯齿 + 抖动==========
     internal val globalAaFilter = PaintFlagsDrawFilter(
         0,
-        Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
+        Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG
     )
 
     override val binding by viewBinding(ActivityMainBinding::inflate)

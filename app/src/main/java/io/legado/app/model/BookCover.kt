@@ -25,6 +25,7 @@ import io.legado.app.help.CacheManager
 import io.legado.app.help.DefaultData
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.glide.BlurTransformation
+import io.legado.app.help.glide.EinkDitherTransformation
 import io.legado.app.help.glide.ImageLoader
 import io.legado.app.help.glide.OkHttpModelLoader
 import io.legado.app.model.analyzeRule.AnalyzeRule
@@ -145,13 +146,79 @@ object BookCover {
             .apply(options)
             .override(context.resources.displayMetrics.widthPixels, SIZE_ORIGINAL)
             .diskCacheStrategy(DiskCacheStrategy.ALL)
-            .skipMemoryCache(true).let {
+            .skipMemoryCache(true)
+            .let {
+                // 合并 EinkDitherTransformation 和传入的 transformation
+                val transforms = mutableListOf<Transformation<Bitmap>>()
+                if (AppConfig.einkDitherImage) {
+                    transforms.add(EinkDitherTransformation())
+                }
                 if (transformation != null) {
-                    it.transform(transformation)
+                    transforms.add(transformation)
+                }
+                if (transforms.isNotEmpty()) {
+                    it.transform(*transforms.toTypedArray())
                 } else {
                     it
                 }
             }
+    }
+
+    /**
+     * E-ink 256 级灰度抖动算法 (Floyd-Steinberg)
+     * 将彩色/灰度图片转换为适合 E-ink 墨水屏显示的 16 级灰度图片
+     */
+    fun applyEink256(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+        val pixels = IntArray(width * height)
+        result.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        val STEP = 255 / 15  // 17
+        val currRowErr = IntArray(width) { 0 }
+        val nextRowErr = IntArray(width) { 0 }
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val index = y * width + x
+                val color = pixels[index]
+
+                // RGB 转灰度
+                val r = (color shr 16) and 0xFF
+                val g = (color shr 8) and 0xFF
+                val b = color and 0xFF
+                var gray = (77 * r + 150 * g + 29 * b) shr 8
+
+                // 加上误差
+                gray += currRowErr[x]
+                gray = gray.coerceIn(0, 255)
+
+                // 量化到 16 级
+                val newGray = (Math.round(gray.toFloat() / STEP) * STEP).coerceIn(0, 255)
+                val quantError = gray - newGray
+
+                // Floyd-Steinberg 误差扩散
+                if (x + 1 < width) currRowErr[x + 1] += quantError * 7 / 16
+                if (y + 1 < height) {
+                    if (x - 1 >= 0) nextRowErr[x - 1] += quantError * 3 / 16
+                    nextRowErr[x] += quantError * 5 / 16
+                    if (x + 1 < width) nextRowErr[x + 1] += quantError * 1 / 16
+                }
+
+                // 写回像素 (灰度)
+                val alpha = color and 0xFF000000.toInt()
+                pixels[index] = alpha or (newGray shl 16) or (newGray shl 8) or newGray
+            }
+
+            // 交换行缓冲
+            System.arraycopy(nextRowErr, 0, currRowErr, 0, width)
+            nextRowErr.fill(0)
+        }
+
+        result.setPixels(pixels, 0, width, 0, 0, width, height)
+        return result
     }
 
     fun preloadManga(

@@ -5,7 +5,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class MangaLayoutManager(context: Context) :
-    LinearLayoutManager(context) {
+    LinearLayoutManager(context, HORIZONTAL, false) {
 
     private val extraLayoutSpace = context.resources.displayMetrics.heightPixels * 3 / 4
 

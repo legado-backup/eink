@@ -16,6 +16,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
 import com.bumptech.glide.request.target.Target.SIZE_ORIGINAL
@@ -196,7 +197,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             enableMangaEInk(AppConfig.enableMangaEInk, AppConfig.mangaEInkThreshold)
             enableGray(AppConfig.enableMangaGray)
         }
-        setHorizontalScroll(AppConfig.enableMangaHorizontalScroll)
+        setHorizontalScroll(true)  // 强制水平翻页
         binding.recyclerView.run {
             adapter = mAdapter
             itemAnimator = null
@@ -205,6 +206,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             setDisableClickScroll(AppConfig.disableClickScroll)
             setDisableMangaScale(AppConfig.disableMangaScale)
             setRecyclerViewPreloader(AppConfig.mangaPreDownloadNum)
+            // 滑动翻页回调，无动画直接切换
+            pageTurnListener = { direction ->
+                scrollPageTo(direction)
+            }
             setPreScrollListener { _, _, _, position ->
                 if (mAdapter.isNotEmpty()) {
                     val item = mAdapter.getItem(position)
@@ -543,11 +548,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
 
             R.id.menu_enable_horizontal_scroll -> {
-                item.isChecked = !item.isChecked
-                AppConfig.enableMangaHorizontalScroll = item.isChecked
-                mMenu?.findItem(R.id.menu_disable_horizontal_page_snap)?.isVisible = item.isChecked
-                setHorizontalScroll(item.isChecked)
-                mAdapter.notifyDataSetChanged()
+                // 强制水平翻页，不允许切换
+                item.isChecked = true
+                AppConfig.enableMangaHorizontalScroll = true
+                toastOnUi("已强制启用水平翻页")
             }
 
             R.id.menu_manga_color_filter -> {
@@ -563,11 +567,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 enableAutoScrollPage = false
                 mScrollTimer.isEnabledPage = false
                 mMenu?.findItem(R.id.menu_manga_auto_page_speed)?.isVisible = item.isChecked
-                if (enableAutoScroll) {
-                    mPagerSnapHelper.attachToRecyclerView(null)
-                } else if (AppConfig.enableMangaHorizontalScroll) {
-                    mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                }
+                // 始终不使用 PagerSnapHelper，保持无动画
+                mPagerSnapHelper.attachToRecyclerView(null)
             }
 
             R.id.menu_hide_manga_title -> {
@@ -590,26 +591,18 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
 
             R.id.menu_disable_horizontal_page_snap -> {
-                item.isChecked = !item.isChecked
-                AppConfig.disableHorizontalPageSnap = item.isChecked
-                if (item.isChecked) {
-                    mPagerSnapHelper.attachToRecyclerView(null)
-                } else {
-                    mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                }
+                // 强制整页吸附，不允许禁用
+                item.isChecked = false
+                AppConfig.disableHorizontalPageSnap = false
+                mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
+                toastOnUi("已强制启用整页翻页")
             }
 
             R.id.menu_disable_manga_page_anim -> {
-                item.isChecked = !item.isChecked
-                mMenu?.findItem(R.id.menu_disable_horizontal_page_snap)?.isVisible = !item.isChecked
-                AppConfig.disableMangaPageAnim = item.isChecked
-                if (item.isChecked) {
-                    mPagerSnapHelper.attachToRecyclerView(null)
-                } else {
-                    if (AppConfig.enableMangaHorizontalScroll && !AppConfig.disableHorizontalPageSnap) {
-                        mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                    }
-                }
+                // 已强制禁用所有翻页动画
+                item.isChecked = true
+                AppConfig.disableMangaPageAnim = true
+                toastOnUi("已强制禁用翻页动画")
             }
 
             R.id.menu_gray_manga -> {
@@ -672,20 +665,11 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun setHorizontalScroll(enable: Boolean) {
-        mAdapter.isHorizontal = enable
-        if (enable) {
-            if (!enableAutoScroll) {
-                if (AppConfig.disableHorizontalPageSnap || AppConfig.disableMangaPageAnim) {
-                    mPagerSnapHelper.attachToRecyclerView(null)
-                } else {
-                    mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                }
-            }
-            mLayoutManager.orientation = LinearLayoutManager.HORIZONTAL
-        } else {
-            mPagerSnapHelper.attachToRecyclerView(null)
-            mLayoutManager.orientation = LinearLayoutManager.VERTICAL
-        }
+        // 强制水平翻页模式，无动画直接切换
+        mAdapter.isHorizontal = true
+        // 不使用 PagerSnapHelper，避免任何滑动吸附动画
+        mPagerSnapHelper.attachToRecyclerView(null)
+        mLayoutManager.orientation = LinearLayoutManager.HORIZONTAL
     }
 
     @SuppressLint("StringFormatMatches")
@@ -697,15 +681,14 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         menu.findItem(R.id.menu_disable_click_scroll).isChecked = AppConfig.disableClickScroll
         menu.findItem(R.id.menu_manga_auto_page_speed).title =
             getString(R.string.manga_auto_page_speed, AppConfig.mangaAutoPageSpeed)
-        menu.findItem(R.id.menu_enable_horizontal_scroll).isChecked =
-            AppConfig.enableMangaHorizontalScroll
+        menu.findItem(R.id.menu_enable_horizontal_scroll).isChecked = true
         menu.findItem(R.id.menu_epaper_manga).isChecked = AppConfig.enableMangaEInk
         menu.findItem(R.id.menu_epaper_manga_setting).isVisible = AppConfig.enableMangaEInk
         menu.findItem(R.id.menu_disable_horizontal_page_snap).run {
-            isVisible = AppConfig.enableMangaHorizontalScroll && !AppConfig.disableMangaPageAnim
-            isChecked = AppConfig.disableHorizontalPageSnap || AppConfig.disableMangaPageAnim
+            isVisible = false
+            isChecked = true
         }
-        menu.findItem(R.id.menu_disable_manga_page_anim).isChecked = AppConfig.disableMangaPageAnim
+        menu.findItem(R.id.menu_disable_manga_page_anim).isChecked = true
         menu.findItem(R.id.menu_gray_manga).isChecked = AppConfig.enableMangaGray
     }
 
@@ -739,27 +722,16 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun scrollPageTo(direction: Int) {
-        if (!binding.recyclerView.canScroll(direction)) {
+        val currentPos = binding.recyclerView.findCenterViewPosition()
+        if (currentPos == RecyclerView.NO_POSITION) return
+
+        val targetPos = currentPos + direction
+        if (targetPos < 0 || targetPos >= mAdapter.itemCount) {
             return
         }
-        var dx = 0
-        var dy = 0
-        if (AppConfig.enableMangaHorizontalScroll) {
-            dx = binding.recyclerView.run {
-                width - paddingStart - paddingEnd
-            }
-        } else {
-            dy = binding.recyclerView.run {
-                height - paddingTop - paddingBottom
-            }
-        }
-        dx *= direction
-        dy *= direction
-        if (AppConfig.disableMangaPageAnim) {
-            binding.recyclerView.scrollBy(dx, dy)
-        } else {
-            binding.recyclerView.smoothScrollBy(dx, dy)
-        }
+
+        // 直接跳转到目标位置，无任何动画
+        binding.recyclerView.scrollToPosition(targetPos)
     }
 
     private fun showNumberPickerDialog(

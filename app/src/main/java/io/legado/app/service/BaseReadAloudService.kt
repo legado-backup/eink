@@ -1,7 +1,7 @@
 @file:Suppress("DEPRECATION")
 
 package io.legado.app.service
-
+import android.os.Build
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -613,7 +613,11 @@ abstract class BaseReadAloudService : BaseService(),
         val builder = NotificationCompat
             .Builder(this, AppConst.channelIdReadAloud)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                }
+            }
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setSmallIcon(R.drawable.ic_volume_up)
             .setSubText(getString(R.string.read_aloud))

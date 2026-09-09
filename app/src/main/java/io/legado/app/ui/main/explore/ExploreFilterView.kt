@@ -239,7 +239,7 @@ class ExploreFilterView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.TRANSPARENT)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 36.dpToPx())
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 30.dpToPx())
         }
         val itemContainer = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -290,23 +290,25 @@ class ExploreFilterView(
             text = title
             gravity = Gravity.CENTER
             maxLines = 1
-            textSize = 14f
+            textSize = 12f
             setTextColor(Color.BLACK)
             background = chipBackground(selected)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                24.dpToPx()
+                20.dpToPx()
             ).apply { marginEnd = 6.dpToPx() }
             setOnClickListener { onClick() }
         }
         // 计算padding使文字居中，不足4字时按4字宽度填充
+        // 固定7字宽度，超过7字截断为4字+省略号
         textView.post {
             val paint = textView.paint
-            val textWidth = paint.measureText(title)
-            val fourCharWidth = paint.measureText("中中中中")
-            val targetWidth = maxOf(textWidth, fourCharWidth)
-            val horizontalPadding = ((targetWidth - textWidth) / 2 + 8 * activity.resources.displayMetrics.density).toInt()
-            val verticalPadding = (2 * activity.resources.displayMetrics.density).toInt()
+            val sevenCharWidth = paint.measureText("中中中中中中中")
+            val displayText = if (title.length > 7) title.take(4) + "…" else title
+            textView.text = displayText
+            val textWidth = paint.measureText(displayText)
+            val horizontalPadding = ((sevenCharWidth - textWidth) / 2 + 8 * activity.resources.displayMetrics.density).toInt()
+            val verticalPadding = (1 * activity.resources.displayMetrics.density).toInt()
             textView.setPadding(horizontalPadding, verticalPadding, horizontalPadding, verticalPadding)
         }
         updateDynamicTitle(kind, textView)
@@ -319,12 +321,12 @@ class ExploreFilterView(
             hint = displayTitle(kind)
             setText(map[kind.title])
             maxLines = 1
-            textSize = 11f
+            textSize = 10f
             setTextColor(Color.BLACK)
             setHintTextColor(Color.BLACK)
             setPadding(8.dpToPx(), 2.dpToPx(), 8.dpToPx(), 2.dpToPx())
             background = chipBackground(false)
-            layoutParams = LinearLayout.LayoutParams(150.dpToPx(), 24.dpToPx()).apply {
+            layoutParams = LinearLayout.LayoutParams(150.dpToPx(), 20.dpToPx()).apply {
                 marginEnd = 6.dpToPx()
             }
             var changeJob: Job? = null
@@ -349,7 +351,24 @@ class ExploreFilterView(
         val map = infoMap ?: return LinearLayout(activity)
         val values = kind.chars?.filterNotNull().orEmpty()
         val spinner = Spinner(activity).apply {
-            adapter = ArrayAdapter(activity, R.layout.item_text_common, values).also {
+            adapter = object : ArrayAdapter<String>(activity, R.layout.item_text_common, values) {
+                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                    val view = super.getView(position, convertView, parent)
+                    (view as? TextView)?.apply {
+                        textSize = 12f
+                        setTextColor(Color.BLACK)
+                    }
+                    return view
+                }
+                override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                    val view = super.getDropDownView(position, convertView, parent)
+                    (view as? TextView)?.apply {
+                        textSize = 12f
+                        setTextColor(Color.BLACK)
+                    }
+                    return view
+                }
+            }.also {
                 it.setDropDownViewResource(R.layout.item_spinner_dropdown)
             }
             // 设置选中项背景透明，避免遮挡
@@ -385,14 +404,14 @@ class ExploreFilterView(
             background = chipBackground(false)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                24.dpToPx()
+                20.dpToPx()
             ).apply { marginEnd = 6.dpToPx() }
             // 点击整个区域弹出下拉菜单
             setOnClickListener { spinner.performClick() }
             addView(TextView(activity).apply {
                 text = displayTitle(kind)
                 setTextColor(Color.BLACK)
-                textSize = 14f
+                textSize = 12f
                 gravity = Gravity.CENTER_VERTICAL
                 updateDynamicTitle(kind, this)
                 // 点击标签也弹出下拉菜单
@@ -554,7 +573,7 @@ class ExploreFilterView(
 
     private fun chipBackground(selected: Boolean) = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
-        cornerRadius = 12.dpToPx().toFloat()
+        cornerRadius = 10.dpToPx().toFloat()
         setColor(Color.WHITE)
         setStroke(1.dpToPx(), Color.BLACK)
         if (selected) {

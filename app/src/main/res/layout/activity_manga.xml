@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/white">
 
     <io.legado.app.ui.book.manga.recyclerview.WebtoonFrame
         android:id="@+id/webtoon_frame"
@@ -39,7 +40,7 @@
         android:id="@+id/fl_loading"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/background">
+        android:background="@color/white">
 
         <LinearLayout
             android:id="@+id/ll_loading"
@@ -55,7 +56,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:indeterminate="true"
-                app:indicatorColor="@color/white"
+                app:indicatorColor="@color/black"
                 app:indicatorSize="36dp"
                 app:trackCornerRadius="99dp"
                 app:trackThickness="3dp" />

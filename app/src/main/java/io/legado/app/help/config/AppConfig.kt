@@ -778,6 +778,10 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefBoolean(PreferKey.enableMangaGray, value)
         }
 
+    var einkDitherImage
+        get() = appCtx.getPrefBoolean(PreferKey.einkDitherImage, true)
+        set(value) = appCtx.putPrefBoolean(PreferKey.einkDitherImage, value)
+
     var welcomeImage
         get() = appCtx.getPrefString(PreferKey.welcomeImage)
         set(value) {

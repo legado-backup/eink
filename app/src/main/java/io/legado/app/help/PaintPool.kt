@@ -5,9 +5,17 @@ import io.legado.app.utils.objectpool.BaseSafeObjectPool
 
 object PaintPool : BaseSafeObjectPool<Paint>(8) {
 
-    private val emptyPaint = Paint()
+    private val emptyPaint = Paint().apply {
+        isAntiAlias = true
+        isDither = true
+        isSubpixelText = false      // E-Ink: 禁用子像素
+    }
 
-    override fun create(): Paint = Paint()
+    override fun create(): Paint = Paint().apply {
+        isAntiAlias = true
+        isDither = true
+        isSubpixelText = false      // E-Ink: 禁用子像素
+    }
 
     override fun recycle(target: Paint) {
         target.set(emptyPaint)

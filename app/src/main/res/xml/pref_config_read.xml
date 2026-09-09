@@ -8,6 +8,12 @@
         app:iconSpaceReserved="false"
         app:isBottomBackground="true"/>
 		<io.legado.app.lib.prefs.NameListPreference
+    android:key="ink_ripple"
+    android:title="波纹翻页"
+    android:defaultValue="off"
+    app:iconSpaceReserved="false"
+    app:isBottomBackground="true"/>
+		<io.legado.app.lib.prefs.NameListPreference
     android:key="eink_mode"
     android:title="模式选择"
     android:entries="@array/eink_mode_name"

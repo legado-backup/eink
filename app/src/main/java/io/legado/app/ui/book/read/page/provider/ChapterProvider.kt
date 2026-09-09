@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.read.page.provider
 
+import android.graphics.Paint
 import android.graphics.Paint.FontMetrics
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -260,24 +261,30 @@ object ChapterProvider {
             else -> Pair(bold, normal)
         }
 
-        //标题
+        //标题 — E-Ink 优化
         val tPaint = TextPaint()
         tPaint.color = ReadBookConfig.textColor
         tPaint.letterSpacing = ReadBookConfig.letterSpacing
         tPaint.typeface = titleFont
         tPaint.textSize = with(ReadBookConfig) { textSize + titleSize }.toFloat().spToPx()
         tPaint.isAntiAlias = true
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender) {
+        tPaint.isDither = true                    // E-Ink: 抖动平滑灰度
+        tPaint.isSubpixelText = false             // E-Ink: 禁用子像素渲染
+        tPaint.hinting = Paint.HINTING_ON         // E-Ink: 强制 Hinting 对齐像素
+        if (AppConfig.isEInkMode || (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender)) {
             tPaint.isLinearText = true
         }
-        //正文
+        //正文 — E-Ink 优化
         val cPaint = TextPaint()
         cPaint.color = ReadBookConfig.textColor
         cPaint.letterSpacing = ReadBookConfig.letterSpacing
         cPaint.typeface = textFont
         cPaint.textSize = ReadBookConfig.textSize.toFloat().spToPx()
         cPaint.isAntiAlias = true
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender) {
+        cPaint.isDither = true                    // E-Ink: 抖动平滑灰度
+        cPaint.isSubpixelText = false             // E-Ink: 禁用子像素渲染
+        cPaint.hinting = Paint.HINTING_ON         // E-Ink: 强制 Hinting 对齐像素
+        if (AppConfig.isEInkMode || (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender)) {
             cPaint.isLinearText = true
         }
         return Pair(tPaint, cPaint)

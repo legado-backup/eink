@@ -44,6 +44,12 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     var longTapListener: ((MotionEvent) -> Boolean)? = null
     var disableMangaScale = false
 
+    // 滑动翻页相关
+    var pageTurnListener: ((Int) -> Unit)? = null  // direction: 1=下一页, -1=上一页
+    private var mStartX = 0f
+    private var mStartY = 0f
+    private val mTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
+
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
         halfWidth = MeasureSpec.getSize(widthSpec) / 2
         halfHeight = MeasureSpec.getSize(heightSpec) / 2
@@ -54,8 +60,43 @@ class WebtoonRecyclerView @JvmOverloads constructor(
         super.onMeasure(widthSpec, heightSpec)
     }
 
+    init {
+        // 禁用 overScroll 边缘效果
+        overScrollMode = OVER_SCROLL_NEVER
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
+        // 非缩放模式下，完全拦截滑动事件，禁止任何默认滚动动画
+        if (currentScale <= 1f && !disableMangaScale) {
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    mStartX = e.x
+                    mStartY = e.y
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    // 完全阻止默认滑动行为
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val dx = e.x - mStartX
+                    val dy = e.y - mStartY
+                    // 水平滑动超过阈值，触发翻页
+                    if (abs(dx) > abs(dy) && abs(dx) > mTouchSlop) {
+                        if (dx < 0) {
+                            pageTurnListener?.invoke(1)  // 向左滑 = 下一页
+                        } else {
+                            pageTurnListener?.invoke(-1)  // 向右滑 = 上一页
+                        }
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    return true
+                }
+            }
+        }
         return detector.onTouchEvent(e) || super.onTouchEvent(e)
     }
 
@@ -79,6 +120,11 @@ class WebtoonRecyclerView @JvmOverloads constructor(
         val totalItemCount = layoutManager?.itemCount ?: 0
         atLastPosition = visibleItemCount > 0 && lastVisibleItemPosition == totalItemCount - 1
         atFirstPosition = firstVisibleItemPosition == 0
+    }
+
+    override fun fling(velocityX: Int, velocityY: Int): Boolean {
+        // 禁用 fling 惯性滚动，完全无动画
+        return false
     }
 
     override fun dispatchNestedPreScroll(

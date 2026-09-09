@@ -5,7 +5,7 @@
     android:id="@+id/rootView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/book_ant_10"
+    android:background="@color/white"
     android:contentDescription="@null">
 
     <androidx.appcompat.widget.AppCompatImageView
@@ -13,13 +13,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:adjustViewBounds="true"
-        android:scaleType="fitXY" />
+        android:scaleType="fitCenter" />
 
     <FrameLayout
         android:id="@+id/fl_progress"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/book_ant_10">
+        android:background="@color/white">
 
         <ProgressBar
             android:id="@+id/loading"
@@ -28,13 +28,12 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:indeterminate="true"
-            android:indeterminateTint="@color/white"
-            android:progressTint="@color/white"
-            app:indicatorColor="@color/white"
+            android:indeterminateTint="@color/black"
+            android:progressTint="@color/black"
+            app:indicatorColor="@color/black"
             app:indicatorSize="36dp"
             app:trackCornerRadius="99dp"
             app:trackThickness="3dp" />
-
 
         <Button
             android:id="@+id/retry"
@@ -43,10 +42,10 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="重新加载"
-            android:textColor="@color/white"
+            android:textColor="@color/black"
             android:textSize="18sp"
             android:visibility="gone"
-            app:backgroundTint="@color/white"
+            app:backgroundTint="@color/black"
             app:cornerRadius="10dp"
             tools:visibility="visible" />
 
@@ -56,7 +55,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="0%"
-            android:textColor="@color/white"
+            android:textColor="@color/black"
             android:visibility="gone"
             tools:visibility="visible" />
     </FrameLayout>

@@ -47,6 +47,7 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
     private lateinit var gridContainer: LinearLayout
     private var settingsPanel: View? = null
     private var wallpaperPath: String? = null
+    private var wallpaperBgViewId: Int = -1
     private var currentPage = 0
     private val prefs by lazy { getSharedPreferences("launcher_prefs", Context.MODE_PRIVATE) }
     private var iconSizeDp: Int = 48
@@ -286,6 +287,8 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
         }
         // 壁纸背景
         val bgView = View(this).apply {
+            id = View.generateViewId()
+            wallpaperBgViewId = id
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -802,12 +805,14 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = 20.dpToPx() }
         }
+        val btnLp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        val gapLp = LinearLayout.LayoutParams(8.dpToPx(), 1)
         btnRow.addView(TextView(this).apply {
             text = "保存配置"
-            textSize = 16f
+            textSize = 14f
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
-            setPadding(24.dpToPx(), 10.dpToPx(), 24.dpToPx(), 10.dpToPx())
+            setPadding(4.dpToPx(), 10.dpToPx(), 4.dpToPx(), 10.dpToPx())
             background = createStrokeDrawable(4.dpToPx().toFloat())
             setOnClickListener {
                 iconSizeDp = iconSeek.getValue()
@@ -820,16 +825,14 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
                 settingsPanel = null
                 recreate()
             }
-        })
-        btnRow.addView(View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(16.dpToPx(), 1)
-        })
+        }, btnLp)
+        btnRow.addView(View(this), gapLp)
         btnRow.addView(TextView(this).apply {
             text = "布局重置"
-            textSize = 16f
+            textSize = 14f
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
-            setPadding(24.dpToPx(), 10.dpToPx(), 24.dpToPx(), 10.dpToPx())
+            setPadding(4.dpToPx(), 10.dpToPx(), 4.dpToPx(), 10.dpToPx())
             background = createStrokeDrawable(4.dpToPx().toFloat())
             setOnClickListener {
                 resetPositions()
@@ -837,7 +840,19 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
                 settingsPanel = null
                 recreate()
             }
-        })
+        }, btnLp)
+        btnRow.addView(View(this), gapLp)
+        btnRow.addView(TextView(this).apply {
+            text = "清理壁纸"
+            textSize = 14f
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+            setPadding(4.dpToPx(), 10.dpToPx(), 4.dpToPx(), 10.dpToPx())
+            background = createStrokeDrawable(4.dpToPx().toFloat())
+            setOnClickListener {
+                clearWallpaperBg()
+            }
+        }, btnLp)
         card.addView(btnRow)
         overlay.addView(card)
         return overlay
@@ -982,6 +997,26 @@ class LauncherActivity : AppCompatActivity(), FilePickerDialog.CallBack {
         row.addView(tvStatus)
         container.addView(row)
         return container
+    }
+
+    /** 清理壁纸：删除文件、清空路径、持久化，并实时恢复白色背景（注意不能与 ContextWrapper.clearWallpaper 同名） */
+    private fun clearWallpaperBg() {
+        if (wallpaperPath == null) {
+            Toast.makeText(this, "未设置壁纸", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            wallpaperPath?.let { File(it).delete() }
+        } catch (_: Exception) {
+        }
+        wallpaperPath = null
+        saveSettings()
+        if (wallpaperBgViewId != -1) {
+            findViewById<View>(wallpaperBgViewId)?.setBackgroundColor(Color.WHITE)
+        }
+        (settingsPanel?.parent as? ViewGroup)?.removeView(settingsPanel)
+        settingsPanel = null
+        Toast.makeText(this, "壁纸已清理", Toast.LENGTH_SHORT).show()
     }
 
     // ========== 直接调用项目自己的 FilePickerDialog ==========

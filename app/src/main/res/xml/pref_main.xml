@@ -58,6 +58,14 @@
         android:title="统计壁纸"
         app:iconSpaceReserved="false" />
 
+    <io.legado.app.lib.prefs.SwitchPreference
+        android:icon="@drawable/ic_6"
+        android:defaultValue="true"
+        android:key="einkDitherImage"
+        android:summary="改善显示16灰度抖动模拟256灰度"
+        android:title="图片优化"
+        app:iconSpaceReserved="false" />
+
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_cfg_about"
         android:summary="可以查看软件的相关信息和版本"

@@ -3,12 +3,12 @@
 kotlin = "2.3.10"
 ksp = "2.3.4"
 agp = "8.13.2"
-appcompat = "1.7.1"
+appcompat = "1.6.1"
 colorpicker = "1.1.0"
 constraintlayout = "2.2.1"
-core = "1.17.0"
+core = "1.12.0"
 flexbox = "3.0.0"
-fragment = "1.8.9"
+fragment = "1.6.2"
 documentfile = "1.1.0"
 
 libarchive = "1.1.6"
@@ -66,9 +66,9 @@ gsyvideoplayer = "11.3.0"
 #noinspection GradleDependency
 webkit = "1.14.0"
 #noinspection GradleDependency
-activity = "1.11.0"
+activity = "1.8.0"
 #noinspection GradleDependency
-lifecycle = "2.9.4"
+lifecycle = "2.6.2"
 #noinspection GradleDependency
 room = "2.7.1"
 #noinspection GradleDependency

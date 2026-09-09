@@ -89,9 +89,10 @@ val textAntiAliasPaint by lazy {
     Paint().apply {
         isAntiAlias = true
         isDither = true
-        isSubpixelText = true
+        isSubpixelText = false      // E-Ink: 禁用子像素渲染，避免杂色
         isFilterBitmap = true
-        hinting = Paint.HINTING_ON
+        hinting = Paint.HINTING_ON  // 强制 Hinting，边缘对齐像素网格
+        isLinearText = true         // 线性文本测量，减少布局抖动
     }
 }
 
@@ -103,10 +104,7 @@ val textAntiAliasPaint by lazy {
     isDrawingCacheEnabled = true
     setWillNotDraw(false)
 
-    // 全局强制文字抗锯齿
-    textAntiAliasPaint.isAntiAlias = true
-    textAntiAliasPaint.isSubpixelText = true
-
+    // Paint 属性已在 lazy 初始化中设置，避免 onDraw 重复配置
     callBack = activity as CallBack
 }
 
@@ -144,9 +142,7 @@ val textAntiAliasPaint by lazy {
         canvas.setDrawFilter(it)
     }
 
-    //以下是你的原生代码，无任何改动
-    textAntiAliasPaint.isAntiAlias = true
-    textAntiAliasPaint.isSubpixelText = true
+    // 以下原生代码保留，移除 Paint 重复设置以提升性能
     canvas.save()
     super.onDraw(canvas)
     autoPager?.onDraw(canvas)

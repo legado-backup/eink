@@ -74,7 +74,9 @@ abstract class BaseService : LifecycleService() {
 
     @CallSuper
     override fun onTimeout(startId: Int, fgsType: Int) {
-        super.onTimeout(startId, fgsType)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            super.onTimeout(startId, fgsType)
+        }
         LogUtils.d(simpleName, "onTimeout startId:$startId fgsType:$fgsType")
         stopSelf()
     }

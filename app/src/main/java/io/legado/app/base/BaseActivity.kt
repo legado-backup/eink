@@ -78,7 +78,7 @@ abstract class BaseActivity<VB : ViewBinding>(
 
     @SuppressLint("ObsoleteSdkInt")
     override fun onCreate(savedInstanceState: Bundle?) {
-		    window.decorView.foreground = null
+		   
         window.decorView.disableAutoFill()
         initTheme()
         super.onCreate(savedInstanceState)

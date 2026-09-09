@@ -1,5 +1,6 @@
 package io.legado.app.ui.book.read.config
 
+import io.legado.app.ui.book.read.page.delegate.IReaderPageH
 import io.legado.app.ui.book.read.page.delegate.InkFastConfig
 import androidx.preference.ListPreference
 import androidx.preference.Preference
@@ -115,6 +116,16 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
     addPreferencesFromResource(R.xml.pref_config_read)
     val screen: PreferenceScreen = preferenceScreen
 
+    // 掌阅水波纹选项（不改动 arrays.xml，代码内设置）
+    findPreference<ListPreference>("ink_ripple")?.apply {
+        entries = arrayOf("关闭", "慢速", "中速", "快速")
+        entryValues = arrayOf("off", "slow", "medium", "fast")
+    }
+    // 仅掌阅固件（EPDCDevice 可反射加载）时显示，否则隐藏
+    if (!IReaderPageH.probe()) {
+        screen.removePreferenceRecursively("ink_ripple")
+    }
+
     // 双重条件：必须Root + RK瑞芯微平台才显示墨水屏设置
     val rootOk = hasRoot()
     val platformStr = getBoardPlatform()
@@ -217,6 +228,9 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
                     val value = getPrefBoolean("ink_fast_turn",true)
                     InkFastConfig.fastTurnEnable = value
                     postEvent("ink_fast_turn", value)
+                }
+                "ink_ripple" -> {
+                    // NoAnimPageDelegate 每次 onAnimStart 时读取，无需额外处理
                 }
                 "eink_mode" -> {
                     val mode = getPrefString("eink_mode", "0")

@@ -9,6 +9,8 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestBuilder
+import com.bumptech.glide.load.Transformation
+import io.legado.app.help.config.AppConfig
 import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.isContentScheme
 import io.legado.app.utils.isDataUrl
@@ -25,7 +27,7 @@ object ImageLoader {
      * 自动判断path类型
      */
     fun load(context: Context, path: String?): RequestBuilder<Drawable> {
-        return when {
+        val builder = when {
             path.isNullOrEmpty() -> Glide.with(context).load(path)
             path.isDataUrl() -> Glide.with(context).load(path)
             path.isAbsUrl() -> Glide.with(context).load(path)
@@ -36,27 +38,28 @@ object ImageLoader {
                 Glide.with(context).load(path)
             }
         }
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(fragment: Fragment, lifecycle: Lifecycle, path: String?): RequestBuilder<Drawable> {
         val requestManager = Glide.with(fragment).lifecycle(lifecycle)
-        return when {
+        val builder = when {
             path.isNullOrEmpty() -> requestManager.load(path)
             path.isDataUrl() -> requestManager.load(path)
             path.isAbsUrl() -> requestManager.load(path)
             path.isContentScheme() -> requestManager.load(path.toUri())
-
             else -> kotlin.runCatching {
                 requestManager.load(File(path))
             }.getOrElse {
                 requestManager.load(path)
             }
         }
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun loadBitmap(context: Context, path: String?): RequestBuilder<Bitmap> {
         val requestManager = Glide.with(context).`as`(Bitmap::class.java)
-        return when {
+        val builder = when {
             path.isNullOrEmpty() -> requestManager.load(path)
             path.isDataUrl() -> requestManager.load(path)
             path.isAbsUrl() -> requestManager.load(path)
@@ -67,6 +70,7 @@ object ImageLoader {
                 requestManager.load(path)
             }
         }
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun loadFile(context: Context, path: String?): RequestBuilder<File> {
@@ -83,27 +87,33 @@ object ImageLoader {
     }
 
     fun load(context: Context, @DrawableRes resId: Int?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(resId)
+        val builder = Glide.with(context).load(resId)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(context: Context, file: File?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(file)
+        val builder = Glide.with(context).load(file)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(context: Context, uri: Uri?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(uri)
+        val builder = Glide.with(context).load(uri)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(context: Context, drawable: Drawable?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(drawable)
+        val builder = Glide.with(context).load(drawable)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(context: Context, bitmap: Bitmap?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(bitmap)
+        val builder = Glide.with(context).load(bitmap)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
     fun load(context: Context, bytes: ByteArray?): RequestBuilder<Drawable> {
-        return Glide.with(context).load(bytes)
+        val builder = Glide.with(context).load(bytes)
+        return if (AppConfig.einkDitherImage) builder.transform(EinkDitherTransformation()) else builder
     }
 
 }
