@@ -21,11 +21,16 @@ object InkFastConfig {
 object InkRippleConfig {
     // "off" / "slow" / "medium" / "fast"
     var mode: String = "off"
+    // ============新增配置项============
+    var verticalRipple: Boolean = false
+    var reverseDirection: Boolean = false
 
     val enabled get() = mode != "off"
 
     fun load(ctx: Context) {
         mode = ctx.getPrefString("ink_ripple", "off") ?: "off"
+        verticalRipple = ctx.getPrefBoolean("ink_ripple_vertical", false)
+        reverseDirection = ctx.getPrefBoolean("ink_ripple_reverse", false)
     }
 }
 
@@ -34,9 +39,13 @@ object IReaderPageH {
     private const val TAG = "IReaderPageH"
     private const val FORCE_NEXT_PAGE_H = 0x01000063
 
-    // 与 KOReader ireaderpageh 插件一致：方向按旋转映射，速度 慢=128 中=64 快=0
+    // 横向普通左右波纹，原版KOReader映射
     private val NEXT_BY_ROTATION = intArrayOf(1, 4, 2, 3)
     private val PREV_BY_ROTATION = intArrayOf(2, 3, 1, 4)
+    // ============新增瀑布纵向数组：竖屏0°下一页向下(3)，上一页向上(4)============
+    private val NEXT_VERTICAL = intArrayOf(3, 1, 4, 2)
+    private val PREV_VERTICAL = intArrayOf(4, 2, 3, 1)
+
     private val SPEED_BITS = mapOf("slow" to 128, "medium" to 64, "fast" to 0)
 
     private var postCommand: Method? = null
@@ -80,12 +89,23 @@ object IReaderPageH {
     }
 
     /** 在 fillPage 提交新页面前调用，使该帧以 PAGE_H 水波纹刷新 */
-    fun prepare(forward: Boolean, rotation: Int) {
+    fun prepare(forward: Boolean, rotation: Int, vertical: Boolean, reverse: Boolean) {
         init()
         if (initFailed) return
         val speed = SPEED_BITS[InkRippleConfig.mode] ?: 128
         val dirIndex = rotation and 3
-        val direction = if (forward) NEXT_BY_ROTATION[dirIndex] else PREV_BY_ROTATION[dirIndex]
+
+        var realForward = forward
+        if(reverse){
+            realForward = !realForward
+        }
+
+        val direction = if(vertical){
+            if (realForward) NEXT_VERTICAL[dirIndex] else PREV_VERTICAL[dirIndex]
+        }else{
+            if (realForward) NEXT_BY_ROTATION[dirIndex] else PREV_BY_ROTATION[dirIndex]
+        }
+
         val effect = direction or speed
         runCatching {
             val cmd = "next-effect-type $effect"
@@ -95,7 +115,7 @@ object IReaderPageH {
                 postCommand!!.invoke(null, cmd)
             }
             forceNextMode!!.invoke(null, FORCE_NEXT_PAGE_H)
-            Log.i(TAG, "PAGE_H prepared, effect: $effect")
+            Log.i(TAG, "PAGE_H prepared, effect: $effect vertical=$vertical reverse=$reverse")
         }.onFailure {
             Log.w(TAG, "prepare failed: ${it.message}")
             initFailed = true
@@ -150,7 +170,8 @@ class NoAnimPageDelegate(readView: ReadView) : HorizontalPageDelegate(readView) 
                 if (rippleEnable) {
                     val forward = mDirection == PageDirection.NEXT
                     val rotation = readView.display?.rotation ?: Surface.ROTATION_0
-                    IReaderPageH.prepare(forward, rotation)
+                    // 传入新增两个参数，其余完全不动
+                    IReaderPageH.prepare(forward, rotation, InkRippleConfig.verticalRipple, InkRippleConfig.reverseDirection)
                 }
                 readView.fillPage(mDirection)
             }

@@ -1,9 +1,11 @@
 package io.legado.app.ui.book.manga
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
@@ -46,7 +48,6 @@ import io.legado.app.ui.book.manga.config.MangaColorFilterDialog
 import io.legado.app.ui.book.manga.config.MangaEpaperDialog
 import io.legado.app.ui.book.manga.config.MangaFooterConfig
 import io.legado.app.ui.book.manga.config.MangaFooterSettingDialog
-import io.legado.app.ui.book.manga.entities.BaseMangaPage
 import io.legado.app.ui.book.manga.entities.MangaPage
 import io.legado.app.ui.book.manga.recyclerview.MangaAdapter
 import io.legado.app.ui.book.manga.recyclerview.MangaLayoutManager
@@ -74,6 +75,7 @@ import io.legado.app.utils.visible
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.lang.reflect.Method
 import java.text.DecimalFormat
 import kotlin.math.ceil
 
@@ -81,6 +83,145 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     ReadManga.Callback, ChangeBookSourceDialog.CallBack, MangaMenu.CallBack,
     MangaColorFilterDialog.Callback, ScrollTimer.ScrollCallback, MangaEpaperDialog.Callback {
 
+    // ============ 内嵌 EPDC 水波纹 ============
+    private object Ripple {
+        private const val TAG = "EPDCRipple"
+        private const val FORCE_NEXT_PAGE_H = 0x01000063
+
+        private var clazz: Class<*>? = null
+        private var post1: Method? = null
+        private var post2: Method? = null
+        private var force: Method? = null
+        private var inited = false
+
+        @Synchronized
+        fun init(): Boolean {
+            if (inited) return clazz != null
+            inited = true
+            try {
+                clazz = Class.forName("android.eink.EPDCDevice")
+                post1 = try {
+                    clazz!!.getMethod("nativePostCommand", String::class.java)
+                } catch (e: NoSuchMethodException) {
+                    null
+                }
+                post2 = try {
+                    clazz!!.getMethod(
+                        "nativePostCommand",
+                        String::class.java,
+                        Array<String>::class.java
+                    )
+                } catch (e: NoSuchMethodException) {
+                    null
+                }
+                force = try {
+                    clazz!!.getMethod("setForceNextPostMode", Int::class.javaPrimitiveType)
+                } catch (e: NoSuchMethodException) {
+                    null
+                }
+                Log.i(TAG, "loaded post1=${post1 != null} post2=${post2 != null} force=${force != null}")
+            } catch (t: Throwable) {
+                Log.w(TAG, "not available: $t")
+                clazz = null
+            }
+            return clazz != null
+        }
+
+        fun isSupported(): Boolean {
+            return init()
+        }
+
+        fun apply(direction: Int, speed: Int) {
+            if (!init()) return
+            val effect = direction or speed
+            try {
+                val cmd = "next-effect-type $effect"
+                if (post2 != null) {
+                    post2!!.invoke(null, cmd, null)
+                } else if (post1 != null) {
+                    post1!!.invoke(null, cmd)
+                }
+                force?.invoke(null, FORCE_NEXT_PAGE_H)
+                Log.i(TAG, "apply dir=$direction speed=$speed effect=$effect")
+            } catch (t: Throwable) {
+                Log.w(TAG, "apply failed: $t")
+            }
+        }
+    }
+
+    companion object {
+        private const val MENU_RIPPLE = 9001
+        private const val MENU_RIPPLE_SPEED = 9002
+        private const val MENU_RIPPLE_WATERFALL = 9003
+        private const val MENU_RIPPLE_REVERSE = 9004
+        private const val RIPPLE_PREFS = "ripple_cfg"
+    }
+
+    // ============ 水波纹设置 ============
+    private val ripplePrefs by lazy {
+        getSharedPreferences(RIPPLE_PREFS, Context.MODE_PRIVATE)
+    }
+
+    private fun isRippleEnabled(): Boolean = ripplePrefs.getBoolean("enabled", true)
+    private fun setRippleEnabled(v: Boolean) {
+        ripplePrefs.edit().putBoolean("enabled", v).apply()
+    }
+
+    private fun rippleSpeed(): String = ripplePrefs.getString("speed", "slow") ?: "slow"
+    private fun setRippleSpeed(v: String) {
+        ripplePrefs.edit().putString("speed", v).apply()
+    }
+
+    private fun isRippleWaterfall(): Boolean = ripplePrefs.getBoolean("waterfall", false)
+    private fun setRippleWaterfall(v: Boolean) {
+        ripplePrefs.edit().putBoolean("waterfall", v).apply()
+    }
+
+    private fun isRippleReverse(): Boolean = ripplePrefs.getBoolean("reverse", false)
+    private fun setRippleReverse(v: Boolean) {
+        ripplePrefs.edit().putBoolean("reverse", v).apply()
+    }
+
+    private fun rippleSpeedBits(): Int {
+        return when (rippleSpeed()) {
+            "medium" -> 64
+            "fast" -> 0
+            else -> 128
+        }
+    }
+
+    /**
+     * 方向映射：1=右 2=左 3=下 4=上
+     * 非瀑布：下一页=右(1)，上一页=左(2)
+     * 瀑布：  下一页=上(4)，上一页=下(3)
+     */
+    private fun calcDirection(forward: Boolean): Int {
+        var f = forward
+        if (isRippleReverse()) f = !f
+        return if (isRippleWaterfall()) {
+            if (f) 4 else 3
+        } else {
+            if (f) 1 else 2
+        }
+    }
+
+    private fun rippleNext() {
+        if (!isRippleEnabled()) return
+        try {
+            Ripple.apply(direction = calcDirection(true), speed = rippleSpeedBits())
+        } catch (t: Throwable) {
+        }
+    }
+
+    private fun ripplePrev() {
+        if (!isRippleEnabled()) return
+        try {
+            Ripple.apply(direction = calcDirection(false), speed = rippleSpeedBits())
+        } catch (t: Throwable) {
+        }
+    }
+
+    // ============ 原有字段 ============
     private val mLayoutManager by lazy {
         MangaLayoutManager(this)
     }
@@ -128,7 +269,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         }
     }
 
-    //打开目录返回选择章节返回结果
     private val tocActivity = registerForActivityResult(TocActivityResult()) {
         it?.let {
             viewModel.openChapter(it[0] as Int, it[1] as Int)
@@ -143,6 +283,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 ReadManga.loadOrUpContent()
             }
         }
+
     override val binding by viewBinding(ActivityMangaBinding::inflate)
     override val viewModel by viewModels<ReadMangaViewModel>()
     private val loadingViewVisible get() = binding.flLoading.isVisible
@@ -197,7 +338,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             enableMangaEInk(AppConfig.enableMangaEInk, AppConfig.mangaEInkThreshold)
             enableGray(AppConfig.enableMangaGray)
         }
-        setHorizontalScroll(true)  // 强制水平翻页
+        setHorizontalScroll(true)
         binding.recyclerView.run {
             adapter = mAdapter
             itemAnimator = null
@@ -206,14 +347,33 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             setDisableClickScroll(AppConfig.disableClickScroll)
             setDisableMangaScale(AppConfig.disableMangaScale)
             setRecyclerViewPreloader(AppConfig.mangaPreDownloadNum)
-            // 滑动翻页回调，无动画直接切换
             pageTurnListener = { direction ->
-                scrollPageTo(direction)
+                if (direction > 0) {
+                    val nextPos = ReadManga.durChapterPos + 1
+                    if (nextPos < (ReadManga.curMangaChapter?.imageCount ?: 0)) {
+                        rippleNext()
+                        ReadManga.durChapterPos = nextPos
+                        ReadManga.curPageChanged()
+                        skipToPage(nextPos)
+                    } else {
+                        ReadManga.moveToNextChapter()
+                    }
+                } else {
+                    val prevPos = ReadManga.durChapterPos - 1
+                    if (prevPos >= 0) {
+                        ripplePrev()
+                        ReadManga.durChapterPos = prevPos
+                        ReadManga.curPageChanged()
+                        skipToPage(prevPos)
+                    } else {
+                        ReadManga.moveToPrevChapter()
+                    }
+                }
             }
             setPreScrollListener { _, _, _, position ->
                 if (mAdapter.isNotEmpty()) {
                     val item = mAdapter.getItem(position)
-                    if (item is BaseMangaPage) {
+                    if (item is MangaPage) {
                         if (ReadManga.durChapterIndex < item.chapterIndex) {
                             ReadManga.moveToNextChapter()
                         } else if (ReadManga.durChapterIndex > item.chapterIndex) {
@@ -222,10 +382,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                             ReadManga.durChapterPos = item.index
                             ReadManga.curPageChanged()
                         }
-                        if (item is MangaPage) {
-                            binding.mangaMenu.upSeekBar(item.index, item.imageCount)
-                            upInfoBar(item)
-                        }
+                        binding.mangaMenu.upSeekBar(item.index, item.imageCount)
+                        upInfoBar(item)
                     }
                 }
             }
@@ -261,14 +419,18 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             setTitle(ReadManga.book?.name)
             val data = withContext(IO) { ReadManga.mangaContents }
             val pos = data.pos
-            val list = data.items
+            val list = data.items.filterIsInstance<MangaPage>()
+            val newPos = list.indexOfFirst {
+                it.chapterIndex == ReadManga.durChapterIndex && it.index == pos
+            }.coerceAtLeast(0)
+
             val curFinish = data.curFinish
             val nextFinish = data.nextFinish
             mAdapter.submitList(list) {
                 if (loadingViewVisible && curFinish) {
                     binding.infobar.isVisible = true
-                    upInfoBar(list[pos])
-                    mLayoutManager.scrollToPositionWithOffset(pos, 0)
+                    upInfoBar(list[newPos])
+                    mLayoutManager.scrollToPositionWithOffset(newPos, 0)
                     binding.flLoading.isGone = true
                     loadMoreView.visible()
                     binding.mangaMenu.upSeekBar(
@@ -330,15 +492,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 } else if (imageCount == 0) {
                     df.format((chapterIndex + 1.0f) / chapterSize.toDouble())
                 } else {
-                    var percent =
+                    var p =
                         df.format(
                             chapterIndex * 1.0f / chapterSize + 1.0f /
                                     chapterSize * (chapterPos + 1) / imageCount.toDouble()
                         )
-                    if (percent == "100.0%" && (chapterIndex + 1 != chapterSize || chapterPos + 1 != imageCount)) {
-                        percent = "99.9%"
+                    if (p == "100.0%" && (chapterIndex + 1 != chapterSize || chapterPos + 1 != imageCount)) {
+                        p = "99.9%"
                     }
-                    percent
+                    p
                 }
                 mLabelBuilder.append(percent)
             }
@@ -352,7 +514,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         super.onResume()
         networkChangedListener.register()
         networkChangedListener.onNetworkChanged = {
-            // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
             if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadManga.inBookshelf) {
                 ReadManga.syncProgress({ progress -> sureNewProgress(progress) })
             }
@@ -464,16 +625,74 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     @SuppressLint("StringFormatMatches")
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.book_manga, menu)
+
+        val hideIds = intArrayOf(
+            R.id.menu_disable_manga_scale,
+            R.id.menu_disable_click_scroll,
+            R.id.menu_enable_auto_page,
+            R.id.menu_manga_auto_page_speed,
+            R.id.menu_enable_horizontal_scroll,
+            R.id.menu_manga_color_filter,
+            R.id.menu_enable_auto_scroll,
+            R.id.menu_epaper_manga,
+            R.id.menu_epaper_manga_setting,
+            R.id.menu_disable_horizontal_page_snap,
+            R.id.menu_disable_manga_page_anim,
+            R.id.menu_gray_manga
+        )
+        for (id in hideIds) {
+            menu.findItem(id)?.isVisible = false
+        }
+
+        if (Ripple.isSupported()) {
+            menu.add(0, MENU_RIPPLE, 0, "启用波纹")
+                .setCheckable(true)
+                .setChecked(isRippleEnabled())
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+
+            menu.add(0, MENU_RIPPLE_SPEED, 1, "波纹速度")
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+
+            menu.add(0, MENU_RIPPLE_WATERFALL, 2, "瀑布波纹")
+                .setCheckable(true)
+                .setChecked(isRippleWaterfall())
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+
+            menu.add(0, MENU_RIPPLE_REVERSE, 3, "反转波纹")
+                .setCheckable(true)
+                .setChecked(isRippleReverse())
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
+        }
+
         upMenu(menu)
         return super.onCompatCreateOptionsMenu(menu)
     }
 
-    /**
-     * 菜单
-     */
     @SuppressLint("StringFormatMatches", "NotifyDataSetChanged")
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            MENU_RIPPLE -> {
+                item.isChecked = !item.isChecked
+                setRippleEnabled(item.isChecked)
+                toastOnUi(if (item.isChecked) "已启用波纹" else "已关闭波纹")
+            }
+
+            MENU_RIPPLE_SPEED -> {
+                showRippleSpeedDialog()
+            }
+
+            MENU_RIPPLE_WATERFALL -> {
+                item.isChecked = !item.isChecked
+                setRippleWaterfall(item.isChecked)
+                toastOnUi(if (item.isChecked) "瀑布波纹：开" else "瀑布波纹：关")
+            }
+
+            MENU_RIPPLE_REVERSE -> {
+                item.isChecked = !item.isChecked
+                setRippleReverse(item.isChecked)
+                toastOnUi(if (item.isChecked) "反转波纹：开" else "反转波纹：关")
+            }
+
             R.id.menu_change_source -> {
                 binding.mangaMenu.runMenuOut()
                 ReadManga.book?.let {
@@ -506,69 +725,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 }
             }
 
-            R.id.menu_disable_manga_scale -> {
-                item.isChecked = !item.isChecked
-                AppConfig.disableMangaScale = item.isChecked
-                setDisableMangaScale(item.isChecked)
-            }
-
-            R.id.menu_disable_click_scroll -> {
-                item.isChecked = !item.isChecked
-                AppConfig.disableClickScroll = item.isChecked
-                setDisableClickScroll(item.isChecked)
-            }
-
-            R.id.menu_enable_auto_page -> {
-                item.isChecked = !item.isChecked
-                val menuMangaAutoPageSpeed = mMenu?.findItem(R.id.menu_manga_auto_page_speed)
-                mScrollTimer.isEnabledPage = item.isChecked
-                menuMangaAutoPageSpeed?.isVisible = item.isChecked
-                enableAutoScrollPage = item.isChecked
-                enableAutoScroll = false
-                mScrollTimer.isEnabled = false
-                mMenu?.findItem(R.id.menu_enable_auto_scroll)?.isChecked = false
-            }
-
-            R.id.menu_manga_auto_page_speed -> {
-                showNumberPickerDialog(
-                    1, getString(R.string.setting_manga_auto_page_speed),
-                    AppConfig.mangaAutoPageSpeed
-                ) {
-                    AppConfig.mangaAutoPageSpeed = it
-                    item.title = getString(R.string.manga_auto_page_speed, it)
-                    mScrollTimer.setSpeed(it)
-                    if (enableAutoScrollPage) {
-                        mScrollTimer.isEnabledPage = true
-                    }
-                }
-            }
-
             R.id.menu_manga_footer_config -> {
                 showDialogFragment(MangaFooterSettingDialog())
-            }
-
-            R.id.menu_enable_horizontal_scroll -> {
-                // 强制水平翻页，不允许切换
-                item.isChecked = true
-                AppConfig.enableMangaHorizontalScroll = true
-                toastOnUi("已强制启用水平翻页")
-            }
-
-            R.id.menu_manga_color_filter -> {
-                binding.mangaMenu.runMenuOut()
-                showDialogFragment(MangaColorFilterDialog())
-            }
-
-            R.id.menu_enable_auto_scroll -> {
-                item.isChecked = !item.isChecked
-                mScrollTimer.isEnabled = item.isChecked
-                mMenu?.findItem(R.id.menu_enable_auto_page)?.isChecked = false
-                enableAutoScroll = item.isChecked
-                enableAutoScrollPage = false
-                mScrollTimer.isEnabledPage = false
-                mMenu?.findItem(R.id.menu_manga_auto_page_speed)?.isVisible = item.isChecked
-                // 始终不使用 PagerSnapHelper，保持无动画
-                mPagerSnapHelper.attachToRecyclerView(null)
             }
 
             R.id.menu_hide_manga_title -> {
@@ -576,45 +734,23 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 AppConfig.hideMangaTitle = item.isChecked
                 ReadManga.loadContent()
             }
-
-            R.id.menu_epaper_manga -> {
-                item.isChecked = !item.isChecked
-                AppConfig.enableMangaEInk = item.isChecked
-                mMenu?.findItem(R.id.menu_gray_manga)?.isChecked = false
-                AppConfig.enableMangaGray = false
-                mMenu?.findItem(R.id.menu_epaper_manga_setting)?.isVisible = item.isChecked
-                mAdapter.enableMangaEInk(item.isChecked, AppConfig.mangaEInkThreshold)
-            }
-
-            R.id.menu_epaper_manga_setting -> {
-                showDialogFragment(MangaEpaperDialog())
-            }
-
-            R.id.menu_disable_horizontal_page_snap -> {
-                // 强制整页吸附，不允许禁用
-                item.isChecked = false
-                AppConfig.disableHorizontalPageSnap = false
-                mPagerSnapHelper.attachToRecyclerView(binding.recyclerView)
-                toastOnUi("已强制启用整页翻页")
-            }
-
-            R.id.menu_disable_manga_page_anim -> {
-                // 已强制禁用所有翻页动画
-                item.isChecked = true
-                AppConfig.disableMangaPageAnim = true
-                toastOnUi("已强制禁用翻页动画")
-            }
-
-            R.id.menu_gray_manga -> {
-                item.isChecked = !item.isChecked
-                AppConfig.enableMangaGray = item.isChecked
-                mMenu?.findItem(R.id.menu_epaper_manga)?.isChecked = false
-                AppConfig.enableMangaEInk = false
-                mMenu?.findItem(R.id.menu_epaper_manga_setting)?.isVisible = false
-                mAdapter.enableGray(item.isChecked)
-            }
         }
         return super.onCompatOptionsItemSelected(item)
+    }
+
+    private fun showRippleSpeedDialog() {
+        val items = arrayOf("慢", "中", "快")
+        val values = arrayOf("slow", "medium", "fast")
+        val currentIdx = values.indexOf(rippleSpeed()).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("波纹速度")
+            .setSingleChoiceItems(items, currentIdx) { dlg, which ->
+                setRippleSpeed(values[which])
+                toastOnUi("已切换到：${items[which]}")
+                dlg.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     override fun openBookInfoActivity() {
@@ -665,9 +801,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun setHorizontalScroll(enable: Boolean) {
-        // 强制水平翻页模式，无动画直接切换
         mAdapter.isHorizontal = true
-        // 不使用 PagerSnapHelper，避免任何滑动吸附动画
         mPagerSnapHelper.attachToRecyclerView(null)
         mLayoutManager.orientation = LinearLayoutManager.HORIZONTAL
     }
@@ -677,19 +811,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         this.mMenu = menu
         menu.findItem(R.id.menu_pre_manga_number).title =
             getString(R.string.pre_download_m, AppConfig.mangaPreDownloadNum)
-        menu.findItem(R.id.menu_disable_manga_scale).isChecked = AppConfig.disableMangaScale
-        menu.findItem(R.id.menu_disable_click_scroll).isChecked = AppConfig.disableClickScroll
-        menu.findItem(R.id.menu_manga_auto_page_speed).title =
-            getString(R.string.manga_auto_page_speed, AppConfig.mangaAutoPageSpeed)
-        menu.findItem(R.id.menu_enable_horizontal_scroll).isChecked = true
-        menu.findItem(R.id.menu_epaper_manga).isChecked = AppConfig.enableMangaEInk
-        menu.findItem(R.id.menu_epaper_manga_setting).isVisible = AppConfig.enableMangaEInk
-        menu.findItem(R.id.menu_disable_horizontal_page_snap).run {
-            isVisible = false
-            isChecked = true
-        }
-        menu.findItem(R.id.menu_disable_manga_page_anim).isChecked = true
-        menu.findItem(R.id.menu_gray_manga).isChecked = AppConfig.enableMangaGray
     }
 
     private fun setDisableMangaScale(disable: Boolean) {
@@ -714,24 +835,27 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun scrollToNext() {
-        scrollPageTo(1)
+        val nextPos = ReadManga.durChapterPos + 1
+        if (nextPos < (ReadManga.curMangaChapter?.imageCount ?: 0)) {
+            rippleNext()
+            ReadManga.durChapterPos = nextPos
+            ReadManga.curPageChanged()
+            skipToPage(nextPos)
+        } else {
+            ReadManga.moveToNextChapter()
+        }
     }
 
     private fun scrollToPrev() {
-        scrollPageTo(-1)
-    }
-
-    private fun scrollPageTo(direction: Int) {
-        val currentPos = binding.recyclerView.findCenterViewPosition()
-        if (currentPos == RecyclerView.NO_POSITION) return
-
-        val targetPos = currentPos + direction
-        if (targetPos < 0 || targetPos >= mAdapter.itemCount) {
-            return
+        val prevPos = ReadManga.durChapterPos - 1
+        if (prevPos >= 0) {
+            ripplePrev()
+            ReadManga.durChapterPos = prevPos
+            ReadManga.curPageChanged()
+            skipToPage(prevPos)
+        } else {
+            ReadManga.moveToPrevChapter()
         }
-
-        // 直接跳转到目标位置，无任何动画
-        binding.recyclerView.scrollToPosition(targetPos)
     }
 
     private fun showNumberPickerDialog(
@@ -778,7 +902,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val normalizedBrightness = brightness.toFloat() / 255.0f
         layoutParams.screenBrightness = normalizedBrightness.coerceIn(0f, 1f)
         window.attributes = layoutParams
-        // 强制刷新屏幕
         window.decorView.postInvalidate()
     }
 
@@ -787,7 +910,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val itemPos = mAdapter.getItems().fastBinarySearch {
             val chapterIndex: Int
             val pageIndex: Int
-            if (it is BaseMangaPage) {
+            if (it is MangaPage) {
                 chapterIndex = it.chapterIndex
                 pageIndex = it.index
             } else {

@@ -1,14 +1,10 @@
 package io.legado.app.ui.book.read.config
 
-import io.legado.app.ui.book.read.page.delegate.IReaderPageH
-import io.legado.app.ui.book.read.page.delegate.InkFastConfig
-import androidx.preference.ListPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceScreen
-import io.legado.app.utils.putPrefString
 import android.annotation.SuppressLint
 import android.content.DialogInterface
 import android.content.SharedPreferences
+import android.hardware.Sensor
+import android.hardware.SensorManager
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -17,6 +13,9 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
+import androidx.preference.ListPreference
+import androidx.preference.Preference
+import androidx.preference.PreferenceScreen
 import io.legado.app.R
 import io.legado.app.base.BasePrefDialogFragment
 import io.legado.app.constant.EventBus
@@ -28,6 +27,8 @@ import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
+import io.legado.app.ui.book.read.page.delegate.IReaderPageH
+import io.legado.app.ui.book.read.page.delegate.InkFastConfig
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.utils.canvasrecorder.CanvasRecorderFactory
@@ -35,8 +36,8 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.postEvent
+import io.legado.app.utils.putPrefString
 import io.legado.app.utils.removePref
-import io.legado.app.utils.setEdgeEffectColor
 
 class MoreConfigDialog : BasePrefDialogFragment() {
     private val readPreferTag = "readPreferenceFragment"
@@ -88,64 +89,78 @@ class MoreConfigDialog : BasePrefDialogFragment() {
         private val slopSquare by lazy { ViewConfiguration.get(requireContext()).scaledTouchSlop }
 
         /** 检测Root权限 */
-private fun hasRoot(): Boolean {
-    return runCatching {
-        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-        process.waitFor()
-        process.exitValue() == 0
-    }.getOrDefault(false)
-}
+        private fun hasRoot(): Boolean {
+            return runCatching {
+                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+                process.waitFor()
+                process.exitValue() == 0
+            }.getOrDefault(false)
+        }
 
-/** 获取芯片平台 ro.board.platform */
-private fun getBoardPlatform(): String {
-    return runCatching {
-        val proc = Runtime.getRuntime().exec(arrayOf("getprop", "ro.board.platform"))
-        val output = proc.inputStream.bufferedReader().readLine() ?: ""
-        proc.waitFor()
-        output.trim().lowercase()
-    }.getOrDefault("")
-}
+        /** 获取芯片平台 ro.board.platform */
+        private fun getBoardPlatform(): String {
+            return runCatching {
+                val proc = Runtime.getRuntime().exec(arrayOf("getprop", "ro.board.platform"))
+                val output = proc.inputStream.bufferedReader().readLine() ?: ""
+                proc.waitFor()
+                output.trim().lowercase()
+            }.getOrDefault("")
+        }
 
-/** 判断是否瑞芯微RK平台 */
-private fun isRkEinkBoard(platform: String): Boolean {
-    return platform.startsWith("rk35") || platform.startsWith("rk33")
-}
+        /** 判断是否瑞芯微RK平台 */
+        private fun isRkEinkBoard(platform: String): Boolean {
+            return platform.startsWith("rk35") || platform.startsWith("rk33")
+        }
 
-@SuppressLint("RestrictedApi")
-override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-    addPreferencesFromResource(R.xml.pref_config_read)
-    val screen: PreferenceScreen = preferenceScreen
+        /** 判断设备是否拥有加速度传感器 */
+        private fun hasAccSensor(): Boolean {
+            val sensorManager = requireContext().getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager
+            val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            return sensor != null
+        }
 
-    // 掌阅水波纹选项（不改动 arrays.xml，代码内设置）
-    findPreference<ListPreference>("ink_ripple")?.apply {
-        entries = arrayOf("关闭", "慢速", "中速", "快速")
-        entryValues = arrayOf("off", "slow", "medium", "fast")
-    }
-    // 仅掌阅固件（EPDCDevice 可反射加载）时显示，否则隐藏
-    if (!IReaderPageH.probe()) {
-        screen.removePreferenceRecursively("ink_ripple")
-    }
+        @SuppressLint("RestrictedApi")
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            addPreferencesFromResource(R.xml.pref_config_read)
+            val screen: PreferenceScreen = preferenceScreen
 
-    // 双重条件：必须Root + RK瑞芯微平台才显示墨水屏设置
-    val rootOk = hasRoot()
-    val platformStr = getBoardPlatform()
-    val showEinkItem = rootOk && isRkEinkBoard(platformStr)
-    // 不满足条件则隐藏两项墨水屏配置
-    if (!showEinkItem) {
-        screen.removePreferenceRecursively("ink_fast_turn")
-        screen.removePreferenceRecursively("eink_mode")
-    }
+            // 掌阅水波纹档位
+            val inkRipplePref = findPreference<ListPreference>("ink_ripple")?.apply {
+                entries = arrayOf("关闭", "慢速", "中速", "快速")
+                entryValues = arrayOf("off", "slow", "medium", "fast")
+            }
 
-    upPreferenceSummary(PreferKey.pageTouchSlop, slopSquare.toString())
-    if (!CanvasRecorderFactory.isSupport) {
-        removePref(PreferKey.optimizeRender)
-        preferenceScreen.removePreferenceRecursively(PreferKey.optimizeRender)
-    }
-}
+            // 非掌阅设备隐藏全部水波纹相关选项
+            if (!IReaderPageH.probe()) {
+                screen.removePreferenceRecursively("ink_ripple")
+                screen.removePreferenceRecursively("ink_ripple_vertical")
+                screen.removePreferenceRecursively("ink_ripple_reverse")
+            }
+
+            // 无加速度计自动移除晃动翻页开关
+            if (!hasAccSensor()) {
+                screen.removePreferenceRecursively("shake_turn_page")
+            }
+
+            // RK+root 墨水屏设置
+            val rootOk = hasRoot()
+            val platformStr = getBoardPlatform()
+            val showEinkItem = rootOk && isRkEinkBoard(platformStr)
+            if (!showEinkItem) {
+                screen.removePreferenceRecursively("ink_fast_turn")
+                screen.removePreferenceRecursively("eink_mode")
+            }
+
+            upPreferenceSummary(PreferKey.pageTouchSlop, slopSquare.toString())
+            if (!CanvasRecorderFactory.isSupport) {
+                removePref(PreferKey.optimizeRender)
+                preferenceScreen.removePreferenceRecursively(PreferKey.optimizeRender)
+            }
+        }
 
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
-            listView.setEdgeEffectColor(primaryColor)
+            
         }
 
         override fun onResume() {
@@ -184,7 +199,7 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
                 PreferKey.textFullJustify,
                 PreferKey.textBottomJustify,
                 PreferKey.useZhLayout,
-                PreferKey.adaptSpecialStyle-> {
+                PreferKey.adaptSpecialStyle -> {
                     postEvent(EventBus.UP_CONFIG, arrayListOf(5))
                 }
                 PreferKey.showBrightnessView -> {
@@ -225,12 +240,14 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
                     postEvent(EventBus.UP_CONFIG, arrayListOf(0))
                 }
                 "ink_fast_turn" -> {
-                    val value = getPrefBoolean("ink_fast_turn",true)
+                    val value = getPrefBoolean("ink_fast_turn", true)
                     InkFastConfig.fastTurnEnable = value
                     postEvent("ink_fast_turn", value)
                 }
-                "ink_ripple" -> {
-                    // NoAnimPageDelegate 每次 onAnimStart 时读取，无需额外处理
+                
+                "ink_ripple_vertical",
+                "ink_ripple_reverse" -> {
+                    postEvent(EventBus.UP_CONFIG, arrayListOf(5))
                 }
                 "eink_mode" -> {
                     val mode = getPrefString("eink_mode", "0")
@@ -247,6 +264,7 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
                 "clickRegionalConfig" -> {
                     (activity as? ReadBookActivity)?.showClickRegionalConfig()
                 }
+                
                 PreferKey.pageTouchSlop -> {
                     NumberPickerDialog(requireContext())
                         .setTitle(getString(R.string.page_touch_slop_dialog_title))
@@ -281,6 +299,5 @@ override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) 
                     getString(R.string.page_touch_slop_summary, value)
             }
         }
-
     }
 }

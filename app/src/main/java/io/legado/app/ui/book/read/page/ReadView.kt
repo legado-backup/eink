@@ -374,6 +374,27 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
     private fun onSingleTapUp() {
+        // 先检测是否点击了页眉或页脚控件本身，点击则返回书架
+        val headerView = curPage.headerView
+        val footerView = curPage.footerView
+        
+        if (headerView != null && headerView.visibility != android.view.View.GONE) {
+            val headerRect = android.graphics.Rect()
+            headerView.getGlobalVisibleRect(headerRect)
+            if (headerRect.contains(startX.toInt(), startY.toInt())) {
+                (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                return
+            }
+        }
+        if (footerView != null && footerView.visibility != android.view.View.GONE) {
+            val footerRect = android.graphics.Rect()
+            footerView.getGlobalVisibleRect(footerRect)
+            if (footerRect.contains(startX.toInt(), startY.toInt())) {
+                (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                return
+            }
+        }
+        
         when {
             isTextSelected -> Unit
             mcRect.contains(startX, startY) -> if (!isAbortAnim) {

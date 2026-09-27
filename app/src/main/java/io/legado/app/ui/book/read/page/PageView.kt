@@ -66,6 +66,16 @@ class PageView(context: Context) : FrameLayout(context) {
             val h2 = if (binding.llHeader.isGone) 0 else binding.llHeader.height
             return h1 + h2 + binding.vwRoot.paddingTop
         }
+    val footerHeight: Int
+        get() {
+            val h1 = if (binding.vwNavigationBar.isGone) 0 else binding.vwNavigationBar.height
+            val h2 = if (binding.llFooter.isGone) 0 else binding.llFooter.height
+            return h1 + h2 + binding.vwRoot.paddingBottom
+        }
+    val headerView: android.view.View?
+        get() = binding.llHeader
+    val footerView: android.view.View?
+        get() = binding.llFooter
     val imgBgPaddingStart: Int
         get() {
             return binding.vwRoot.paddingStart
@@ -76,6 +86,21 @@ class PageView(context: Context) : FrameLayout(context) {
             upStyle()
             binding.vwStatusBar.applyStatusBarPadding()
             binding.vwNavigationBar.applyNavigationBarPadding()
+            // 点击页眉或页脚返回书架
+            binding.llHeader.apply {
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    readBookActivity?.finish()
+                }
+            }
+            binding.llFooter.apply {
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    readBookActivity?.finish()
+                }
+            }
         }
     }
 

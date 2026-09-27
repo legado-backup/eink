@@ -2,7 +2,6 @@ package io.legado.app.ui.book.manga.recyclerview
 
 import android.content.Context
 import android.graphics.Rect
-import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -34,10 +33,7 @@ class WebtoonFrame : FrameLayout {
     private val recycler: WebtoonRecyclerView?
         get() = getChildAt(0) as? WebtoonRecyclerView
 
-    private val mcRect = RectF()
-    private val blRect = RectF()
-    private val brRect = RectF()
-
+    // 点击区域回调
     private var mTouchMiddle: (() -> Unit)? = null
     fun onTouchMiddle(init: () -> Unit) = apply { this.mTouchMiddle = init }
     private var mNextPage: (() -> Unit)? = null
@@ -49,28 +45,29 @@ class WebtoonFrame : FrameLayout {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        // 点击事件由 WebtoonRecyclerView 的 tapListener 回调
+        // 这里根据坐标判断点击区域
         recycler?.tapListener = { ev ->
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val x = ev.rawX
+            val y = ev.rawY
+
             when {
-                mcRect.contains(ev.rawX, ev.rawY) -> {
+                // 中间区域 → 唤出菜单
+                x > w * 0.33f && x < w * 0.66f && y > h * 0.33f && y < h * 0.66f -> {
                     mTouchMiddle?.invoke()
                 }
-
-                blRect.contains(ev.rawX, ev.rawY) && !disabledClickScroll -> {
+                // 左下区域 → 上一页
+                x < w * 0.33f && y > h * 0.66f && !disabledClickScroll -> {
                     mPrevPage?.invoke()
                 }
-
-                brRect.contains(ev.rawX, ev.rawY) && !disabledClickScroll -> {
+                // 右下区域 → 下一页
+                x > w * 0.66f && y > h * 0.66f && !disabledClickScroll -> {
                     mNextPage?.invoke()
                 }
             }
         }
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        mcRect.set(width * 0.33f, height * 0.33f, width * 0.66f, height * 0.66f)
-        blRect.set(0f, height * 0.66f, width * 0.33f, height.toFloat())
-        brRect.set(width * 0.66f, height * 0.66f, width.toFloat(), height.toFloat())
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {

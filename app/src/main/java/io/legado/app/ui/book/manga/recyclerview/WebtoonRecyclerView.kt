@@ -12,9 +12,9 @@ import android.view.animation.DecelerateInterpolator
 import androidx.core.animation.doOnEnd
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import io.legado.app.ui.book.manga.entities.MangaPage
 import io.legado.app.utils.findCenterViewPosition
 import kotlin.math.abs
-
 
 class WebtoonRecyclerView @JvmOverloads constructor(
     context: Context,
@@ -44,11 +44,14 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     var longTapListener: ((MotionEvent) -> Boolean)? = null
     var disableMangaScale = false
 
-    // 滑动翻页相关
+    // ===== 滑动翻页相关 =====
     var pageTurnListener: ((Int) -> Unit)? = null  // direction: 1=下一页, -1=上一页
     private var mStartX = 0f
     private var mStartY = 0f
+    private var mIsDragging = false
     private val mTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    /** 翻页所需的最小滑动距离（像素），超过这个距离才触发翻页 */
+    private val mPageTurnThreshold = mTouchSlop * 2
 
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
         halfWidth = MeasureSpec.getSize(widthSpec) / 2
@@ -61,42 +64,87 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     }
 
     init {
-        // 禁用 overScroll 边缘效果
         overScrollMode = OVER_SCROLL_NEVER
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        // 非缩放模式下，完全拦截滑动事件，禁止任何默认滚动动画
-        if (currentScale <= 1f && !disableMangaScale) {
+        // 非缩放模式下：完全接管触摸事件，屏蔽所有默认滑动
+        if (currentScale <= 1f) {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     mStartX = e.x
                     mStartY = e.y
+                    mIsDragging = false
+                    // 同时传递给 detector 用于检测双击/长按
+                    detector.onTouchEvent(e)
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    val dx = e.x - mStartX
+                    val dy = e.y - mStartY
+                    if (!mIsDragging && (abs(dx) > mTouchSlop || abs(dy) > mTouchSlop)) {
+                        mIsDragging = true
+                    }
+                    // 边界检测：如果当前位置是章节第一页或最后一页，且继续向边界外滑动，
+                    // 强制标记为 dragging，确保 ACTION_UP 时能触发翻页
+                    if (!mIsDragging) {
+                        val lm = layoutManager as? LinearLayoutManager
+                        val currentAdapter = adapter as? MangaAdapter
+                        if (lm != null && currentAdapter != null) {
+                            val currentPos = findCenterViewPosition()
+                            if (currentPos != NO_POSITION && currentPos < currentAdapter.itemCount) {
+                                val currentItem = currentAdapter.getItem(currentPos)
+                                if (currentItem is MangaPage) {
+                                    val isFirstPageOfChapter = currentItem.index == 0
+                                    val isLastPageOfChapter = currentItem.index == currentItem.imageCount - 1
+                                    
+                                    // 向右滑且是章节第一页 → 上一章
+                                    if (isFirstPageOfChapter && dx > mTouchSlop) {
+                                        mIsDragging = true
+                                    }
+                                    // 向左滑且是章节最后一页 → 下一章
+                                    if (isLastPageOfChapter && dx < -mTouchSlop) {
+                                        mIsDragging = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // 传递给 detector（缩放时有用）
+                    detector.onTouchEvent(e)
                     // 完全阻止默认滑动行为
                     return true
                 }
                 MotionEvent.ACTION_UP -> {
                     val dx = e.x - mStartX
                     val dy = e.y - mStartY
-                    // 水平滑动超过阈值，触发翻页
-                    if (abs(dx) > abs(dy) && abs(dx) > mTouchSlop) {
-                        if (dx < 0) {
-                            pageTurnListener?.invoke(1)  // 向左滑 = 下一页
-                        } else {
-                            pageTurnListener?.invoke(-1)  // 向右滑 = 上一页
+
+                    if (!mIsDragging) {
+                        // 没有拖动 → 这是点击，触发 tapListener（修复点击不出菜单）
+                        tapListener?.invoke(e)
+                    } else {
+                        // 有拖动 → 判断滑动方向翻页
+                        if (abs(dx) > abs(dy) && abs(dx) > mPageTurnThreshold) {
+                            if (dx < 0) {
+                                pageTurnListener?.invoke(1)   // 向左滑 → 下一页
+                            } else {
+                                pageTurnListener?.invoke(-1)  // 向右滑 → 上一页
+                            }
                         }
                     }
+                    detector.onTouchEvent(e)
+                    mIsDragging = false
                     return true
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    mIsDragging = false
+                    detector.onTouchEvent(e)
                     return true
                 }
             }
         }
+        // 缩放模式下走原来的 detector 逻辑
         return detector.onTouchEvent(e) || super.onTouchEvent(e)
     }
 
@@ -140,17 +188,13 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     }
 
     private fun getPositionX(positionX: Float): Float {
-        if (currentScale < 1) {
-            return 0f
-        }
+        if (currentScale < 1) return 0f
         val maxPositionX = halfWidth * (currentScale - 1)
         return positionX.coerceIn(-maxPositionX, maxPositionX)
     }
 
     private fun getPositionY(positionY: Float): Float {
-        if (currentScale < 1) {
-            return (originalHeight / 2 - halfHeight).toFloat()
-        }
+        if (currentScale < 1) return (originalHeight / 2 - halfHeight).toFloat()
         val maxPositionY = halfHeight * (currentScale - 1)
         return positionY.coerceIn(-maxPositionY, maxPositionY)
     }
@@ -278,7 +322,8 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     inner class GestureListener : GestureDetectorWithLongTap.Listener() {
 
         override fun onSingleTapConfirmed(ev: MotionEvent): Boolean {
-            tapListener?.invoke(ev)
+            // 点击事件改由 onTouchEvent 的 ACTION_UP 统一处理
+            // 这里不再触发，避免重复
             return false
         }
 
@@ -316,6 +361,7 @@ class WebtoonRecyclerView @JvmOverloads constructor(
         private var isZoomDragging = false
         var isDoubleTapping = false
         var isQuickScaling = false
+
         override fun onTouchEvent(ev: MotionEvent): Boolean {
             val action = ev.actionMasked
             val actionIndex = ev.actionIndex
