@@ -75,6 +75,7 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
         tvPageAnim.setTextColor(textColor)
         tvBgTs.setTextColor(textColor)
         tvShareLayout.setTextColor(textColor)
+        dsbTextWeight.valueFormat = { it.toString() }
         dsbTextSize.valueFormat = {
             (it + 5).toString()
         }
@@ -111,9 +112,6 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             ChineseUtils.unLoad(*TransType.entries.toTypedArray())
             postEvent(EventBus.UP_CONFIG, arrayListOf(5))
         }
-        textFontWeightConverter.onChanged {
-            postEvent(EventBus.UP_CONFIG, arrayListOf(8, 9, 6))
-        }
         tvTextFont.setOnClickListener {
             showDialogFragment<FontSelectDialog>()
         }
@@ -143,6 +141,10 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
             ReadBookConfig.shareLayout = isChecked
             upView()
             postEvent(EventBus.UP_CONFIG, arrayListOf(1, 2, 5))
+        }
+        dsbTextWeight.onChanged = {
+            ReadBookConfig.textBold = it
+            postEvent(EventBus.UP_CONFIG, arrayListOf(8, 5))
         }
         dsbTextSize.onChanged = {
             ReadBookConfig.textSize = it + 5
@@ -184,13 +186,13 @@ class ReadStyleDialog : BaseDialogFragment(R.layout.dialog_read_book_style),
     }
 
     private fun upView() = binding.run {
-        textFontWeightConverter.upUi(ReadBookConfig.textBold)
         ReadBook.pageAnim().let {
             if (it >= 0 && it < rgPageAnim.childCount) {
                 rgPageAnim.check(rgPageAnim[it].id)
             }
         }
         ReadBookConfig.let {
+            dsbTextWeight.progress = it.textBold
             dsbTextSize.progress = it.textSize - 5
             dsbTextLetterSpacing.progress = (it.letterSpacing * 100).toInt() + 50
             dsbLineSize.progress = it.lineSpacingExtra

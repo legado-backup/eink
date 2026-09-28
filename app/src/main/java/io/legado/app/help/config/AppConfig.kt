@@ -53,6 +53,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     var editAutoComplete = appCtx.getPrefBoolean(PreferKey.editAutoComplete, true)
     var showBoardLine = appCtx.getPrefInt(PreferKey.showBoardLine, 1)
     var adaptSpecialStyle = appCtx.getPrefBoolean(PreferKey.adaptSpecialStyle, true)
+    var headerFooterBack = appCtx.getPrefBoolean(PreferKey.headerFooterBack, true)
     
     // 强制设置为墨水屏模式
     var isEInkMode: Boolean = true
@@ -65,6 +66,7 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             PreferKey.editAutoComplete -> editAutoComplete = appCtx.getPrefBoolean(PreferKey.editAutoComplete, true)
             PreferKey.showBoardLine -> showBoardLine = appCtx.getPrefInt(PreferKey.showBoardLine, 1)
             PreferKey.adaptSpecialStyle -> adaptSpecialStyle = appCtx.getPrefBoolean(PreferKey.adaptSpecialStyle, true)
+            PreferKey.headerFooterBack -> headerFooterBack = appCtx.getPrefBoolean(PreferKey.headerFooterBack, true)
 
             PreferKey.themeMode -> {
                 // 忽略用户设置，强制保持为墨水屏

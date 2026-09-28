@@ -185,7 +185,7 @@ data class TextLine(
 
         val underlineMode = ReadBookConfig.underlineMode
         if (underlineMode == 0) return
-        if (!isImage && !isHtml && ReadBook.book?.isImage != true) {
+        if (!isImage && !isHtml && ReadBook.book?.isImage != true && !isTitle) {
             drawUnderline(canvas, underlineMode)
         }
     }

@@ -25,6 +25,12 @@
         android:defaultValue="false"
         app:iconSpaceReserved="false"
         app:isBottomBackground="true"/>
+				<io.legado.app.lib.prefs.SwitchPreference
+    android:key="headerFooterBack"
+    android:title="页脚返回"
+    android:defaultValue="true"
+    app:iconSpaceReserved="false"
+    app:isBottomBackground="true"/>
 		<io.legado.app.lib.prefs.NameListPreference
     android:key="eink_mode"
     android:title="模式选择"

@@ -6,30 +6,26 @@
 		
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_cfg_source"
-        android:summary="导入网络书源或者本地书源"
         android:key="bookSourceManage"
         android:title="书源管理"
         app:iconSpaceReserved="false" />
 				
-    <io.legado.app.lib.prefs.SwitchPreference
+    <!-- <io.legado.app.lib.prefs.SwitchPreference
         android:defaultValue="false"
         android:icon="@drawable/ic_cfg_web"
-        android:summary="@string/web_service_desc"
         android:key="webService"
         android:title="网页阅读"
         app:allowDividerBelow="false"
-        app:iconSpaceReserved="false" />
+        app:iconSpaceReserved="false" />-->
 
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_cfg_backup"
-        android:summary="本地备份或者云备份设置"
         android:key="web_dav_setting"
         android:title="备份配置"
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_cfg_other"
-        android:summary="一些偏好的其他设置相关"
         android:key="setting"
         android:title="其他配置"
         app:iconSpaceReserved="false" />
@@ -38,7 +34,6 @@
     <io.legado.app.lib.prefs.SwitchPreference
         android:defaultValue="false"
         android:icon="@drawable/ic_cfg_other"
-        android:summary="开启后可将本应用设为默认桌面"
         android:key="launcher_mode"
         android:title="桌面模式"
         app:allowDividerBelow="false"
@@ -46,14 +41,12 @@
 
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_5"
-        android:summary="点击即可跳转安卓原生设置"
         android:key="system_settings"
-        android:title="系统设置"
+        android:title="安卓设置"
         app:iconSpaceReserved="false" />
 				
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_6"
-        android:summary="根据阅读记录生成账单风格壁纸"
         android:key="wallpaper_generator"
         android:title="统计壁纸"
         app:iconSpaceReserved="false" />
@@ -62,13 +55,11 @@
         android:icon="@drawable/ic_6"
         android:defaultValue="true"
         android:key="einkDitherImage"
-        android:summary="改善显示16灰度抖动模拟256灰度"
-        android:title="图片优化"
+        android:title="图片抖动"
         app:iconSpaceReserved="false" />
 
     <io.legado.app.lib.prefs.Preference
         android:icon="@drawable/ic_cfg_about"
-        android:summary="可以查看软件的相关信息和版本"
         android:key="about"
         android:title="关于软件"
         app:iconSpaceReserved="false" />

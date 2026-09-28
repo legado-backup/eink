@@ -34,14 +34,12 @@ import androidx.core.net.toUri
  */
 @Suppress("DEPRECATION", "ConstPropertyName")
 object ChapterProvider {
-    //用于图片字的替换
-    const val srcReplaceStr = "袮" //▩▣ //这是不应该存在的汉字,会替换为祢，这个字符用来标记
+    const val srcReplaceStr = "袮"
     const val srcReplaceChar = '袮'
     const val srcReplacementChar = '祢'
-    //用于评论按钮的替换
     const val reviewStr = "꧁"
     const val reviewChar = '꧁'
-    const val indentChar = "　"
+    const val indentChar = " "
 
     @JvmStatic
     var viewWidth = 0
@@ -183,11 +181,7 @@ object ChapterProvider {
         getPaints(typeface).let {
             titlePaint = it.first
             contentPaint = it.second
-//            reviewPaint.color = contentPaint.color
-//            reviewPaint.textSize = contentPaint.textSize * 0.45f
-//            reviewPaint.textAlign = Paint.Align.CENTER
         }
-        //间距
         lineSpacingExtra = ReadBookConfig.lineSpacingExtra / 10f
         paragraphSpacing = ReadBookConfig.paragraphSpacing
         titleTopSpacing = ReadBookConfig.titleTopSpacing.dpToPx()
@@ -239,51 +233,51 @@ object ChapterProvider {
         } ?: Typeface.DEFAULT
     }
 
+    /**
+     * 获取 Paint，使用 Android 原生字重 API
+     * textBold: 0-100, 50 为正常 (400), 0 为最细 (100), 100 为最粗 (900)
+     */
     private fun getPaints(typeface: Typeface?): Pair<TextPaint, TextPaint> {
-        // 字体统一处理
-        val bold = Typeface.create(typeface, Typeface.BOLD)
         val normal = Typeface.create(typeface, Typeface.NORMAL)
-        val (titleFont, textFont) = when (ReadBookConfig.textBold) {
-            1 -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    Pair(Typeface.create(typeface, 900, false), bold)
-                else
-                    Pair(bold, bold)
-            }
-
-            2 -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    Pair(normal, Typeface.create(typeface, 300, false))
-                else
-                    Pair(normal, normal)
-            }
-
-            else -> Pair(bold, normal)
+        val boldWeight = ReadBookConfig.textBold.coerceIn(0, 100)
+        // 映射：0-100 → 100-900 (50→400 正常)
+        val mappedWeight = ((boldWeight - 50) * 16 + 400).toInt().coerceIn(100, 900)
+        
+        val titleFont = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create(typeface, mappedWeight, false)
+        } else {
+            if (mappedWeight >= 700) Typeface.create(typeface, Typeface.BOLD) else normal
+        }
+        val textFont = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create(typeface, mappedWeight, false)
+        } else {
+            if (mappedWeight >= 700) Typeface.create(typeface, Typeface.BOLD) else normal
         }
 
-        //标题 — E-Ink 优化
+        // 标题 Paint
         val tPaint = TextPaint()
         tPaint.color = ReadBookConfig.textColor
         tPaint.letterSpacing = ReadBookConfig.letterSpacing
         tPaint.typeface = titleFont
         tPaint.textSize = with(ReadBookConfig) { textSize + titleSize }.toFloat().spToPx()
         tPaint.isAntiAlias = true
-        tPaint.isDither = true                    // E-Ink: 抖动平滑灰度
-        tPaint.isSubpixelText = false             // E-Ink: 禁用子像素渲染
-        tPaint.hinting = Paint.HINTING_ON         // E-Ink: 强制 Hinting 对齐像素
+        tPaint.isDither = true
+        tPaint.isSubpixelText = false
+        tPaint.hinting = Paint.HINTING_ON
         if (AppConfig.isEInkMode || (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender)) {
             tPaint.isLinearText = true
         }
-        //正文 — E-Ink 优化
+        
+        // 正文 Paint
         val cPaint = TextPaint()
         cPaint.color = ReadBookConfig.textColor
         cPaint.letterSpacing = ReadBookConfig.letterSpacing
         cPaint.typeface = textFont
         cPaint.textSize = ReadBookConfig.textSize.toFloat().spToPx()
         cPaint.isAntiAlias = true
-        cPaint.isDither = true                    // E-Ink: 抖动平滑灰度
-        cPaint.isSubpixelText = false             // E-Ink: 禁用子像素渲染
-        cPaint.hinting = Paint.HINTING_ON         // E-Ink: 强制 Hinting 对齐像素
+        cPaint.isDither = true
+        cPaint.isSubpixelText = false
+        cPaint.hinting = Paint.HINTING_ON
         if (AppConfig.isEInkMode || (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && AppConfig.optimizeRender)) {
             cPaint.isLinearText = true
         }
@@ -291,12 +285,10 @@ object ChapterProvider {
     }
 
     /**
-     * 更新View尺寸
+     * 更新 View 尺寸
      */
     fun upViewSize(width: Int, height: Int) {
-        if (width <= 0 || height <= 0) {
-            return
-        }
+        if (width <= 0 || height <= 0) return
         if (width != viewWidth || height != viewHeight) {
             if (width == viewWidth) {
                 upViewSizeRunnable = handler.postDelayed(300) {
@@ -326,20 +318,11 @@ object ChapterProvider {
         when (AppConfig.doublePageHorizontal) {
             "0" -> doublePage = false
             "1" -> doublePage = true
-            "2" -> {
-                doublePage = (viewWidth > viewHeight)
-                        && ReadBook.pageAnim() != 3
-            }
-
-            "3" -> {
-                doublePage = (viewWidth > viewHeight || appCtx.isPad)
-                        && ReadBook.pageAnim() != 3
-            }
+            "2" -> doublePage = (viewWidth > viewHeight) && ReadBook.pageAnim() != 3
+            "3" -> doublePage = (viewWidth > viewHeight || appCtx.isPad) && ReadBook.pageAnim() != 3
         }
 
-        if (viewWidth <= 0 || viewHeight <= 0) {
-            return
-        }
+        if (viewWidth <= 0 || viewHeight <= 0) return
 
         paddingLeft = ReadBookConfig.paddingLeft.dpToPx()
         paddingTop = ReadBookConfig.paddingTop.dpToPx()
@@ -359,13 +342,12 @@ object ChapterProvider {
             setFallbackLayout()
         }
 
-        visibleRect.set( //留余，让溢出时也显示
+        visibleRect.set(
             paddingLeft.toFloat() - 10,
             paddingTop.toFloat() - 10,
             visibleRight.toFloat() + 10,
-            visibleBottom.toFloat() + 10f.dpToPx() //下划线最远10dp
+            visibleBottom.toFloat() + 10f.dpToPx()
         )
-
     }
 
     private fun setFallbackLayout() {
@@ -382,5 +364,4 @@ object ChapterProvider {
         visibleRight = viewWidth - paddingRight
         visibleBottom = paddingTop + visibleHeight
     }
-
 }

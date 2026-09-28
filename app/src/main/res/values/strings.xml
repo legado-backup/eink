@@ -724,6 +724,10 @@
     <string name="source_auto_changing">Changing source</string>
     <string name="click_to_apply">Tap to join</string>
     <string name="middle">Middle</string>
+    <string name="normal">正常</string>
+    <string name="bold">粗体</string>
+    <string name="thin">细体</string>
+    <string name="text_font_weight">粗细</string>
     <string name="information">Information</string>
     <string name="switchLayout">Switch Layout</string>
     <string name="text_font_weight_converter">Text font weight switching</string>

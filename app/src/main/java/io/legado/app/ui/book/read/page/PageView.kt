@@ -35,6 +35,8 @@ import io.legado.app.utils.dpToPx
 import io.legado.app.utils.gone
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.setTextIfNotEqual
+import io.legado.app.constant.PreferKey
+import io.legado.app.utils.getPrefBoolean
 import splitties.views.backgroundColor
 import java.util.Date
 
@@ -86,21 +88,6 @@ class PageView(context: Context) : FrameLayout(context) {
             upStyle()
             binding.vwStatusBar.applyStatusBarPadding()
             binding.vwNavigationBar.applyNavigationBarPadding()
-            // 点击页眉或页脚返回书架
-            binding.llHeader.apply {
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    readBookActivity?.finish()
-                }
-            }
-            binding.llFooter.apply {
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    readBookActivity?.finish()
-                }
-            }
         }
     }
 
@@ -152,22 +139,22 @@ class PageView(context: Context) : FrameLayout(context) {
         upTime()
         upBattery(battery)
     }
-		
-		
-		override fun onDraw(canvas: android.graphics.Canvas) {
-    val mainActivity: MainActivity? = run {
-        var ctx = context
-        while (ctx is android.content.ContextWrapper) {
-            if (ctx is MainActivity) return@run ctx
-            ctx = ctx.baseContext
+
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        val mainActivity: MainActivity? = run {
+            var ctx = context
+            while (ctx is android.content.ContextWrapper) {
+                if (ctx is MainActivity) return@run ctx
+                ctx = ctx.baseContext
+            }
+            null
         }
-        null
+        mainActivity?.globalAaFilter?.let {
+            canvas.setDrawFilter(it)
+        }
+        super.onDraw(canvas)
     }
-    mainActivity?.globalAaFilter?.let {
-        canvas.setDrawFilter(it)
-    }
-    super.onDraw(canvas)
-}
 
     /**
      * 显示状态栏时隐藏header
@@ -407,7 +394,7 @@ class PageView(context: Context) : FrameLayout(context) {
         tvTitle?.setTextIfNotEqual(textPage.title)
         val readProgress = readProgress
         tvTotalProgress?.setTextIfNotEqual(readProgress)
-        tvTotalProgress1?.setTextIfNotEqual("${chapterIndex.plus(1)}/${chapterSize}")
+        tvTotalProgress1?.setTextIfNotEqual("${chapterIndex.plus(1)}/$chapterSize")
         if (textChapter.isCompleted) {
             tvPageAndTotal?.setTextIfNotEqual("${index.plus(1)}/$pageSize  $readProgress")
             tvPage?.setTextIfNotEqual("${index.plus(1)}/$pageSize")

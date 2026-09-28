@@ -13,6 +13,7 @@ import android.view.WindowInsets
 import android.widget.FrameLayout
 import io.legado.app.R
 import io.legado.app.constant.PageAnim
+import io.legado.app.constant.PreferKey
 import io.legado.app.data.entities.BookProgress
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
@@ -38,6 +39,7 @@ import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.book.read.page.provider.LayoutProgressListener
 import io.legado.app.ui.book.read.page.provider.TextPageFactory
 import io.legado.app.utils.activity
+import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.longToastOnUi
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.throttle
@@ -374,15 +376,17 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
     private fun onSingleTapUp() {
-        // 先检测是否点击了页眉或页脚控件本身，点击则返回书架
+        // 先检测是否点击了页眉或页脚控件本身，点击则返回书架（受开关控制）
         val headerView = curPage.headerView
         val footerView = curPage.footerView
-        
+
         if (headerView != null && headerView.visibility != android.view.View.GONE) {
             val headerRect = android.graphics.Rect()
             headerView.getGlobalVisibleRect(headerRect)
             if (headerRect.contains(startX.toInt(), startY.toInt())) {
-                (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                if (context.getPrefBoolean(PreferKey.headerFooterBack, true)) {
+                    (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                }
                 return
             }
         }
@@ -390,11 +394,13 @@ class ReadView(context: Context, attrs: AttributeSet) :
             val footerRect = android.graphics.Rect()
             footerView.getGlobalVisibleRect(footerRect)
             if (footerRect.contains(startX.toInt(), startY.toInt())) {
-                (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                if (context.getPrefBoolean(PreferKey.headerFooterBack, true)) {
+                    (activity as? io.legado.app.ui.book.read.ReadBookActivity)?.finish()
+                }
                 return
             }
         }
-        
+
         when {
             isTextSelected -> Unit
             mcRect.contains(startX, startY) -> if (!isAbortAnim) {
@@ -560,7 +566,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     fun upPageSlopSquare() {
         val pageTouchSlop = AppConfig.pageTouchSlop
         this.pageSlopSquare = if (pageTouchSlop == 0) slopSquare else pageTouchSlop
-        pageSlopSquare2 = this.pageSlopSquare * pageSlopSquare
+        pageSlopSquare2 = this.pageSlopSquare * this.pageSlopSquare
     }
 
     fun upPageTouchClick() {
@@ -645,17 +651,15 @@ class ReadView(context: Context, attrs: AttributeSet) :
     }
 
 
-
-
     fun onScrollAnimStart() {
-    autoPager.pause()
-    
-}
+        autoPager.pause()
 
-fun onScrollAnimStop() {
-    autoPager.resume()
-    
-}
+    }
+
+    fun onScrollAnimStop() {
+        autoPager.resume()
+
+    }
 
     fun onPageChange() {
         autoPager.reset()
@@ -707,7 +711,4 @@ fun onScrollAnimStop() {
         fun upSystemUiVisibility()
         fun sureNewProgress(progress: BookProgress)
     }
-		
-		
-		
 }
