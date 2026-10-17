@@ -13,7 +13,6 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
-import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceScreen
 import io.legado.app.R
@@ -24,10 +23,8 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.lib.prefs.fragment.PreferenceFragment
 import io.legado.app.lib.theme.bottomBackground
-import io.legado.app.lib.theme.primaryColor
 import io.legado.app.model.ReadBook
 import io.legado.app.ui.book.read.ReadBookActivity
-import io.legado.app.ui.book.read.page.delegate.IReaderPageH
 import io.legado.app.ui.book.read.page.delegate.InkFastConfig
 import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.widget.number.NumberPickerDialog
@@ -124,18 +121,10 @@ class MoreConfigDialog : BasePrefDialogFragment() {
             addPreferencesFromResource(R.xml.pref_config_read)
             val screen: PreferenceScreen = preferenceScreen
 
-            // 掌阅水波纹档位
-            val inkRipplePref = findPreference<ListPreference>("ink_ripple")?.apply {
-                entries = arrayOf("关闭", "慢速", "中速", "快速")
-                entryValues = arrayOf("off", "slow", "medium", "fast")
-            }
-
-            // 非掌阅设备隐藏全部水波纹相关选项
-            if (!IReaderPageH.probe()) {
-                screen.removePreferenceRecursively("ink_ripple")
-                screen.removePreferenceRecursively("ink_ripple_vertical")
-                screen.removePreferenceRecursively("ink_ripple_reverse")
-            }
+            // ★ 强制移除波纹相关选项（因为已经移动到排版设置了）
+            screen.removePreferenceRecursively("ink_ripple")
+            screen.removePreferenceRecursively("ink_ripple_vertical")
+            screen.removePreferenceRecursively("ink_ripple_reverse")
 
             // 无加速度计自动移除晃动翻页开关
             if (!hasAccSensor()) {
@@ -160,7 +149,6 @@ class MoreConfigDialog : BasePrefDialogFragment() {
 
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             super.onViewCreated(view, savedInstanceState)
-            
         }
 
         override fun onResume() {
@@ -245,10 +233,8 @@ class MoreConfigDialog : BasePrefDialogFragment() {
                     postEvent("ink_fast_turn", value)
                 }
                 
-                "ink_ripple_vertical",
-                "ink_ripple_reverse" -> {
-                    postEvent(EventBus.UP_CONFIG, arrayListOf(5))
-                }
+                // ★ 已删除 ink_ripple_vertical / ink_ripple_reverse 的监听
+                
                 "eink_mode" -> {
                     val mode = getPrefString("eink_mode", "0")
                     runCatching {

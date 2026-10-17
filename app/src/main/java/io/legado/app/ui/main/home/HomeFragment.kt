@@ -14,6 +14,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Matrix
+import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -36,6 +37,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -87,13 +89,6 @@ import java.util.Locale
 
 /**
  * 主页（E-ink 风格）
- *
- * 生命周期约定（本文件的硬性规则）：
- * 1. [viewLifecycleOwner] 只在 [onViewCreated] 内部取一次，之后全程通过
- *    [withViewLifecycle] / [repeatOnLifecycle] 传递，不再从 post / postDelayed / 回调里取。
- * 2. 所有 `post` / `postDelayed` 的 Runnable 都必须持有同一实例，
- *    以便在 [onDestroyView] 里真正 `removeCallbacks` 掉（不能用 removeCallbacks(null)）。
- * 3. 视图相关的渲染方法统一先过 [viewDestroyed] + view 的判空。
  */
 class HomeFragment(
     private val argPosition: Int = -1
@@ -107,8 +102,6 @@ class HomeFragment(
 
     private val WHITE = Color.parseColor("#FFFFFFFF")
     private val BLACK = Color.parseColor("#FF000000")
-
-    // 修复：原来是 #FF000000（AA=FF 即全不透明），实际就是黑色，"灰"是假的。
     private val GRAY = Color.parseColor("#FF8A8A8A")
     private val LIGHT_GRAY = Color.parseColor("#FFEEEEEE")
     private val STROKE_DP = 1.5f
@@ -122,14 +115,7 @@ class HomeFragment(
     private var isPickingWallpaper = false
     private var pickerBackCallback: OnBackPressedCallback? = null
 
-    /** 视图是否已销毁。所有渲染入口的第一道闸门。 */
     private var viewDestroyed = false
-
-    /**
-     * fitAll 的重试令牌。
-     * View.removeCallbacks 靠 `Runnable 实例相等` 匹配，之前传 null 匹配不到任何东西，
-     * 导致 50ms 自重试循环在 onDestroyView 之后继续投递消息。必须复用同一个实例。
-     */
     private val fitAllRunnable = Runnable { fitAll() }
 
     private var originalStatusBarColor: Int = Color.BLACK
@@ -170,7 +156,6 @@ class HomeFragment(
     private val chartDayLabels = mutableListOf<TextView>()
     private var chartMaxMs: Long = 60L * 60L * 1000L
 
-    // ---- 数据缓存：观察者只负责产出这些字段，渲染方法只读这些字段 ----
     private var readingBook: Book? = null
     private var recentBooks: List<Book> = emptyList()
     private var cachedFiles: List<File> = emptyList()
@@ -206,7 +191,6 @@ class HomeFragment(
     private val baseFontSummaryLabel = 16f
     private val baseFontSummaryValue = 12f
 
-    // 修复：不再用 requireContext()（detach 后会抛 "Fragment not attached"），改用 attach 时缓存的 appContext
     private val prefs: SharedPreferences by lazy {
         (appContext ?: requireContext().applicationContext)
             .getSharedPreferences("home_fragment_prefs", Context.MODE_PRIVATE)
@@ -235,20 +219,11 @@ class HomeFragment(
         )
     }
 
-    // ==================== 生命周期判据 ====================
-
-    /** 视图是否处于可用状态：既要没被标记销毁，也要真的拿得到 view。 */
     private fun isViewAlive(): Boolean {
         if (viewDestroyed) return false
         return view != null && viewLifecycleOwnerLiveData.value != null
     }
 
-    /**
-     * 安全的 view 访问入口。
-     * 注意：不要再用 `view != null` 当作 viewLifecycleOwner 可用的判据——
-     * androidx 的 destroyFragmentView() 先调 onDestroyView()、之后才把 mView 置 null，
-     * 期间 getView() 非 null 但视图已经 detach、生命周期已开始拆除。
-     */
     private inline fun withViewLifecycle(block: (View, LifecycleOwner) -> Unit) {
         if (viewDestroyed) return
         val v = view ?: return
@@ -294,9 +269,7 @@ class HomeFragment(
         applyWallpaper()
 
         contentScale = 1f
-        // 只建骨架，不绑数据。此时 mView 还是 null，任何依赖 view 的渲染都会空转。
         buildSkeleton()
-        // 用持有引用的 token，onDestroyView 才能真正撤掉
         rootLayout.post(fitAllRunnable)
 
         return scrollView
@@ -305,9 +278,6 @@ class HomeFragment(
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // ★ 全文件唯一一处取 viewLifecycleOwner 的地方。
-        // repeatOnLifecycle(STARTED) 会随视图生死自动启停：
-        // 视图销毁 → 子协程立即取消；再次 STARTED → 自动重新订阅（等价于原来的 onResume 刷新）。
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { observeReadingBook() }
@@ -332,13 +302,10 @@ class HomeFragment(
         viewDestroyed = true
         cleanupPickerBackCallback()
         if (::rootLayout.isInitialized) {
-            // ★ 修复：原来是 removeCallbacks(null)，那是空操作，撤不掉任何东西。
             rootLayout.removeCallbacks(fitAllRunnable)
         }
         super.onDestroyView()
     }
-
-    // ==================== 观察者（只产出数据，不直接碰 view 生命周期） ====================
 
     private suspend fun observeReadingBook() {
         appDb.bookDao.flowReading().collect { books ->
@@ -393,8 +360,6 @@ class HomeFragment(
         renderStatsChart()
     }
 
-    // ==================== 渲染（全部先过 isViewAlive） ====================
-
     private fun buildSkeleton() {
         if (!isAdded || !isViewAliveOrBuilding()) return
         rootLayout.removeAllViews()
@@ -406,7 +371,6 @@ class HomeFragment(
         bindViews()
     }
 
-    /** onCreateView 期间 mView 尚未赋值，这里允许建骨架但不做数据绑定。 */
     private fun isViewAliveOrBuilding(): Boolean = !viewDestroyed
 
     private fun bindViews() {
@@ -427,8 +391,9 @@ class HomeFragment(
         val b = readingBook
         if (b != null) {
             tvReadingName.text = b.name
-            tvReadingAuthor.text = b.author
-            tvReadingIntro.text = b.intro ?: ""
+            tvReadingAuthor.text = if (b.author.isNullOrBlank()) "本地" else b.author
+            tvReadingIntro.text = if (b.intro.isNullOrBlank()) "当前可能为本地书籍无简介" else b.intro
+
             val progress = if (b.totalChapterNum > 0) {
                 (b.durChapterIndex * 100 / b.totalChapterNum).coerceIn(0, 100)
             } else 0
@@ -555,13 +520,10 @@ class HomeFragment(
         if (!this::chartContainer.isInitialized) return
         chartMaxMs = weekData.maxOrNull()?.coerceAtLeast(MIN_CHART_MS) ?: MIN_CHART_MS
         updateChart(weekData)
-        // 下一帧再刷一次，保证 bar 的 height 已经量出来
         chartContainer.post {
             if (isViewAlive()) updateChart(weekData)
         }
     }
-
-    // ==================== 布局测量 ====================
 
     private fun fitAll() {
         if (viewDestroyed || !::rootLayout.isInitialized) return
@@ -577,7 +539,6 @@ class HomeFragment(
         var hi = 1.0f
         var best = 0.35f
 
-        // 二分测量：循环里只建骨架量高度，不再重复绑数据（原实现在这里每轮都 post 一次 loadFileList）
         repeat(18) {
             val mid = (lo + hi) / 2f
             contentScale = mid
@@ -678,8 +639,6 @@ class HomeFragment(
         }
     }
 
-    // ==================== 壁纸 ====================
-
     override fun onResult(data: Intent) {
         if (!isViewAlive()) return
         val uri = data.data ?: return
@@ -734,7 +693,6 @@ class HomeFragment(
         }
     }
 
-    /** 整体重建 + 重新绑定（用户改了壁纸/透明度之后走这里） */
     private fun rebuildAllCards() {
         if (!isAdded || !isViewAlive()) return
         rootLayout.removeCallbacks(fitAllRunnable)
@@ -862,8 +820,6 @@ class HomeFragment(
         return inSampleSize
     }
 
-    // ==================== 权限 ====================
-
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -925,8 +881,6 @@ class HomeFragment(
         }
     }
 
-    // ==================== 尺寸 ====================
-
     private fun fixedDp(v: Float): Int =
         (v * resources.displayMetrics.density + 0.5f).toInt().coerceAtLeast(1)
 
@@ -956,8 +910,6 @@ class HomeFragment(
 
     private fun gapPx(): Int = (16f * scale * contentScale).dpToPx().toInt().coerceAtLeast(4)
 
-    // ==================== 状态栏 ====================
-
     private fun applyTransparentStatusBar() {
         val act = activity ?: return
         val w = act.window ?: return
@@ -983,8 +935,6 @@ class HomeFragment(
         @Suppress("DEPRECATION")
         w.decorView.systemUiVisibility = originalSystemUiVisibility
     }
-
-    // ==================== 副标题 / 尺寸设置 ====================
 
     private fun loadSubtitle(): String =
         prefs.getString("subtitle", DEFAULT_SUBTITLE) ?: DEFAULT_SUBTITLE
@@ -1175,8 +1125,6 @@ class HomeFragment(
             .show()
     }
 
-    // ==================== 卡片构建 ====================
-
     private fun buildHeader() {
         val header = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1293,8 +1241,8 @@ class HomeFragment(
 
         ivReadingCover = RoundedImageView(requireContext()).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            background = createRoundRectDrawable(6f, cardBgColor(), STROKE_DP, BLACK)
-            setCornerRadius(fixedDp(6f).toFloat())
+            // 只设置圆角，不设置背景或描边
+            setCornerRadius(fixedDp(12f).toFloat())
             layoutParams = LinearLayout.LayoutParams(coverW, coverH)
         }
         card.addView(ivReadingCover)
@@ -1317,7 +1265,7 @@ class HomeFragment(
 
         tvReadingAuthor = TextView(requireContext()).apply {
             text = ""
-            setTextColor(GRAY)
+            setTextColor(BLACK)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(baseFontReadingAuthor))
             setPadding(0, dp(4f), 0, 0)
         }
@@ -1325,7 +1273,7 @@ class HomeFragment(
 
         tvReadingIntro = TextView(requireContext()).apply {
             text = ""
-            setTextColor(GRAY)
+            setTextColor(BLACK)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, sp(baseFontReadingIntro))
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
@@ -1660,8 +1608,6 @@ class HomeFragment(
         rootLayout.addView(card)
     }
 
-    // ==================== 跳转 / 工具 ====================
-
     private fun openFileTransfer(filePath: String?) {
         val intent = Intent(requireContext(), LanTransferActivity::class.java)
         if (filePath != null) intent.putExtra("filePath", filePath)
@@ -1693,8 +1639,6 @@ class HomeFragment(
             String.format(Locale.getDefault(), "%.1fMB", bytes / 1024.0 / 1024.0)
         else -> String.format(Locale.getDefault(), "%.1fGB", bytes / 1024.0 / 1024.0 / 1024.0)
     }
-
-    // ==================== Drawable ====================
 
     private fun createSvgDrawable(pathData: List<String>): Drawable = object : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1817,32 +1761,27 @@ private class RoundedImageView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : AppCompatImageView(context, attrs, defStyleAttr) {
 
-    private val path = Path()
-    private val rectF = RectF()
-    private val xferPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.BLACK
-        style = Paint.Style.FILL
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-    }
-    private var radius = 0f
+    private var cornerRadius = 0f
 
-    fun setCornerRadius(r: Float) {
-        radius = r
+    fun setCornerRadius(radius: Float) {
+        cornerRadius = radius
+        invalidateOutline()
         invalidate()
     }
 
-    override fun onDraw(canvas: Canvas) {
-        if (radius <= 0f || width == 0 || height == 0) {
-            super.onDraw(canvas)
-            return
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        // 使用硬件原生 Outline 裁剪图片为圆角，完美去边，无需背景和边框
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                if (cornerRadius > 0f) {
+                    outline.setRoundRect(0, 0, view.width, view.height, cornerRadius)
+                } else {
+                    outline.setRoundRect(0, 0, view.width, view.height, 0f)
+                }
+            }
         }
-        val save = canvas.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-        super.onDraw(canvas)
-        path.reset()
-        rectF.set(0f, 0f, width.toFloat(), height.toFloat())
-        path.addRoundRect(rectF, radius, radius, Path.Direction.CW)
-        canvas.drawPath(path, xferPaint)
-        canvas.restoreToCount(save)
+        clipToOutline = true
     }
 }
 
