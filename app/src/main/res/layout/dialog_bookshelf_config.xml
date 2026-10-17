@@ -10,11 +10,13 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
+        <!-- 分组样式（隐藏） -->
         <LinearLayout
             android:id="@+id/ll_group_style"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:visibility="gone"
             app:layout_constraintTop_toTopOf="parent">
 
             <TextView
@@ -35,6 +37,7 @@
 
         </LinearLayout>
 
+        <!-- 显示未读（保留） -->
         <io.legado.app.lib.theme.view.ThemeSwitch
             android:id="@+id/sw_show_unread"
             android:layout_width="match_parent"
@@ -44,33 +47,40 @@
             app:layout_constraintTop_toBottomOf="@+id/ll_group_style"
             tools:ignore="TouchTargetSizeCheck" />
 
+        <!-- 显示最后更新时间（隐藏） -->
         <io.legado.app.lib.theme.view.ThemeSwitch
             android:id="@+id/sw_show_last_update_time"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="6dp"
             android:text="@string/show_last_update_time"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@+id/sw_show_unread"
             tools:ignore="TouchTargetSizeCheck" />
 
+        <!-- 显示待更新书籍数（隐藏） -->
         <io.legado.app.lib.theme.view.ThemeSwitch
             android:id="@+id/sw_show_wait_up_books"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="6dp"
             android:text="@string/show_wait_up_count"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@+id/sw_show_last_update_time"
             tools:ignore="TouchTargetSizeCheck" />
 
+        <!-- 显示快速滚动条（隐藏） -->
         <io.legado.app.lib.theme.view.ThemeSwitch
             android:id="@+id/sw_show_bookshelf_fast_scroller"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="6dp"
             android:text="@string/show_bookshelf_fast_scroller"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@+id/sw_show_wait_up_books"
             tools:ignore="TouchTargetSizeCheck" />
 
+        <!-- 布局列 -->
         <LinearLayout
             android:id="@+id/ll_layout"
             android:layout_width="0dp"
@@ -93,51 +103,65 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- index 0：列表 -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/layout_list"
+                    android:text="列表"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 1：紧凑列表（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/layout_list_compact"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 2：网格 -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/layout_grid2"
+                    android:text="网格"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 3：网格3（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/layout_grid3"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 4：网格4（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/layout_grid4"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 5：网格5（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/layout_grid5"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 6：网格6（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/layout_grid6"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
+
             </RadioGroup>
 
         </LinearLayout>
 
+        <!-- 排序列 -->
         <LinearLayout
             android:id="@+id/ll_sort"
             android:layout_width="0dp"
@@ -160,51 +184,63 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- index 0（保留） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_0"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 1（保留） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_1"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 2（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_2"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 3（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_3"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 4（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_4"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
+                <!-- index 5（隐藏） -->
                 <RadioButton
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/bookshelf_px_5"
+                    android:visibility="gone"
                     tools:ignore="TouchTargetSizeCheck" />
 
             </RadioGroup>
 
         </LinearLayout>
 
+        <!-- 书名显示（隐藏） -->
         <LinearLayout
             android:id="@+id/book_name_choice"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@+id/ll_layout">
 
             <io.legado.app.ui.widget.text.AccentTextView
@@ -241,6 +277,7 @@
             </RadioGroup>
         </LinearLayout>
 
+        <!-- 边距 -->
         <io.legado.app.ui.widget.DetailSeekBar
             android:id="@+id/margin"
             android:layout_width="match_parent"

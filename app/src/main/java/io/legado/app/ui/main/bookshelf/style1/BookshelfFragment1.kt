@@ -68,25 +68,47 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         get() = bookGroups.getOrNull(tabLayout.selectedTabPosition)
 
     private fun initView() {
-    binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
-    tabLayout.isTabIndicatorFullWidth = false
-    tabLayout.tabMode = TabLayout.MODE_SCROLLABLE
-    tabLayout.setSelectedTabIndicatorColor(requireContext().accentColor)
-    tabLayout.setupWithViewPager(binding.viewPagerBookshelf)
-    binding.viewPagerBookshelf.offscreenPageLimit = 1
-    binding.viewPagerBookshelf.adapter = adapter
+        binding.viewPagerBookshelf.setEdgeEffectColor(primaryColor)
+        tabLayout.isTabIndicatorFullWidth = false
+        tabLayout.tabMode = TabLayout.MODE_SCROLLABLE
+        tabLayout.setSelectedTabIndicatorColor(requireContext().accentColor)
+        tabLayout.setupWithViewPager(binding.viewPagerBookshelf)
+        binding.viewPagerBookshelf.offscreenPageLimit = 1
+        binding.viewPagerBookshelf.adapter = adapter
 
-    // 清空高程
-    tabLayout.elevation = 0f
-    // 遍历隐藏TabLayout内部自带的1dp分隔线
-    for (i in 0 until tabLayout.childCount) {
-        val child = tabLayout.getChildAt(i)
-        // 匹配内置分割细线直接隐藏
-        if (child.height in 1..3) {
-            child.visibility = View.GONE
+        tabLayout.elevation = 0f
+        for (i in 0 until tabLayout.childCount) {
+            val child = tabLayout.getChildAt(i)
+            if (child.height in 1..3) {
+                child.visibility = View.GONE
+            }
         }
     }
-}
+
+    // ==================== 音量键翻页：转发给当前显示的子 Fragment ====================
+
+    /** 音量上：上一页 */
+    fun onVolumeUp(): Boolean {
+        val current = fragmentMap[groupId] ?: return false
+        return current.onVolumeUp()
+    }
+
+    /** 音量下：下一页 */
+    fun onVolumeDown(): Boolean {
+        val current = fragmentMap[groupId] ?: return false
+        return current.onVolumeDown()
+    }
+
+    /** 返回：如果当前不在"全部"分组（position 0），先切回第 0 个 Tab */
+    fun back(): Boolean {
+        if (tabLayout.selectedTabPosition != 0) {
+            tabLayout.getTabAt(0)?.select()
+            return true
+        }
+        return false
+    }
+
+    // =============================================================================
 
     override fun onQueryTextSubmit(query: String?): Boolean {
         SearchActivity.start(requireContext(), query)
@@ -154,10 +176,6 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             return bookGroups[position].groupName
         }
 
-        /**
-         * 确定视图位置是否更改时调用
-         * @return POSITION_NONE 已更改,刷新视图. POSITION_UNCHANGED 未更改,不刷新视图
-         */
         override fun getItemPosition(any: Any): Int {
             val fragment = any as BooksFragment
             val position = fragment.position
@@ -186,9 +204,6 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         override fun instantiateItem(container: ViewGroup, position: Int): Any {
             var fragment = super.instantiateItem(container, position) as BooksFragment
             val group = bookGroups[position]
-            /**
-             * Activity recreate 会复用之前的 Fragment，不正确的需要重新创建
-             */
             if (fragment.isCreated && getItemPosition(fragment) == POSITION_NONE) {
                 destroyItem(container, position, fragment)
                 fragment = super.instantiateItem(container, position) as BooksFragment
@@ -196,6 +211,5 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
             fragmentMap[group.groupId] = fragment
             return fragment
         }
-
     }
 }

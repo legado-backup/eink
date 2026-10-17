@@ -20,23 +20,24 @@ import splitties.views.onLongClick
 @Suppress("UNUSED_PARAMETER")
 class BooksAdapterGrid(context: Context, callBack: CallBack) :
     BaseBooksAdapter<RecyclerView.ViewHolder>(context, callBack) {
-    private val showBookname = AppConfig.showBookname
 
-    override fun onCreateViewHolder(
-        parent: ViewGroup,
-        viewType: Int
-    ): RecyclerView.ViewHolder {
+    // 写死为 2：网格永远走「书名叠加」布局
+    private val showBookname = 2
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
             1 -> {
-                when (showBookname) {
-                    2 -> GroupViewHolder2(ItemBookshelfGridGroup2Binding.inflate(inflater, parent, false))
-                    else -> GroupViewHolder(ItemBookshelfGridGroupBinding.inflate(inflater, parent, false))
+                if (showBookname == 2) {
+                    GroupViewHolder2(ItemBookshelfGridGroup2Binding.inflate(inflater, parent, false))
+                } else {
+                    GroupViewHolder(ItemBookshelfGridGroupBinding.inflate(inflater, parent, false))
                 }
             }
             else -> {
-                when (showBookname) {
-                    2 -> BookViewHolder2(ItemBookshelfGrid2Binding.inflate(inflater, parent, false))
-                    else -> BookViewHolder(ItemBookshelfGridBinding.inflate(inflater, parent, false))
+                if (showBookname == 2) {
+                    BookViewHolder2(ItemBookshelfGrid2Binding.inflate(inflater, parent, false))
+                } else {
+                    BookViewHolder(ItemBookshelfGridBinding.inflate(inflater, parent, false))
                 }
             }
         }
@@ -52,17 +53,14 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 holder.registerListener(it)
                 holder.onBind(it, position, payloads)
             }
-
             is BookViewHolder2 -> (getItem(position) as? Book)?.let {
                 holder.registerListener(it)
                 holder.onBind(it, position, payloads)
             }
-
             is GroupViewHolder -> (getItem(position) as? BookGroup)?.let {
                 holder.registerListener(it)
                 holder.onBind(it, position, payloads)
             }
-
             is GroupViewHolder2 -> (getItem(position) as? BookGroup)?.let {
                 holder.registerListener(it)
                 holder.onBind(it, position, payloads)
@@ -93,11 +91,7 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                     bundle.keySet().forEach {
                         when (it) {
                             "name" -> tvName.text = item.name
-                            "cover" -> ivCover.load(
-                                item,
-                                false
-                            )
-
+                            "cover" -> ivCover.load(item, false)
                             "refresh" -> upRefresh(this, item)
                         }
                     }
@@ -106,12 +100,8 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         }
 
         fun registerListener(item: Any) {
-            binding.root.setOnClickListener {
-                callBack.onItemClick(item)
-            }
-            binding.root.onLongClick {
-                callBack.onItemLongClick(item)
-            }
+            binding.root.setOnClickListener { callBack.onItemClick(item) }
+            binding.root.onLongClick { callBack.onItemLongClick(item) }
         }
 
         private fun upRefresh(binding: ItemBookshelfGridBinding, item: Book) {
@@ -119,7 +109,7 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 binding.bvUnread.invisible()
                 binding.rlLoading.visible()
             } else {
-                binding.rlLoading.inVisible()
+                binding.rlLoading.gone()
                 if (AppConfig.showUnread) {
                     binding.bvUnread.setBadgeCount(item.getUnreadChapterNum())
                     binding.bvUnread.setHighlight(item.lastCheckCount > 0)
@@ -128,7 +118,6 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 }
             }
         }
-
     }
 
     inner class BookViewHolder2(val binding: ItemBookshelfGrid2Binding) :
@@ -149,11 +138,7 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                     bundle.keySet().forEach {
                         when (it) {
                             "name" -> tvName.text = item.name
-                            "cover" -> ivCover.load(
-                                item,
-                                false
-                            )
-
+                            "cover" -> ivCover.load(item, false)
                             "refresh" -> upRefresh(this, item)
                         }
                     }
@@ -162,12 +147,8 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         }
 
         fun registerListener(item: Any) {
-            binding.root.setOnClickListener {
-                callBack.onItemClick(item)
-            }
-            binding.root.onLongClick {
-                callBack.onItemLongClick(item)
-            }
+            binding.root.setOnClickListener { callBack.onItemClick(item) }
+            binding.root.onLongClick { callBack.onItemLongClick(item) }
         }
 
         private fun upRefresh(binding: ItemBookshelfGrid2Binding, item: Book) {
@@ -175,7 +156,7 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 binding.bvUnread.invisible()
                 binding.rlLoading.visible()
             } else {
-                binding.rlLoading.inVisible()
+                binding.rlLoading.gone()
                 if (AppConfig.showUnread) {
                     binding.bvUnread.setBadgeCount(item.getUnreadChapterNum())
                     binding.bvUnread.setHighlight(item.lastCheckCount > 0)
@@ -184,7 +165,6 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                 }
             }
         }
-
     }
 
     inner class GroupViewHolder(val binding: ItemBookshelfGridGroupBinding) :
@@ -217,27 +197,20 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         }
 
         fun registerListener(item: Any) {
-            binding.root.setOnClickListener {
-                callBack.onItemClick(item)
-            }
-            binding.root.onLongClick {
-                callBack.onItemLongClick(item)
-            }
+            binding.root.setOnClickListener { callBack.onItemClick(item) }
+            binding.root.onLongClick { callBack.onItemLongClick(item) }
         }
-
     }
 
     inner class GroupViewHolder2(val binding: ItemBookshelfGridGroup2Binding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun onBind(item: BookGroup, position: Int) = binding.run {
-            item.groupName.let {
-                if (it.isBlank()) {
-                    tvName.gone()
-                } else{
-                    tvName.visible()
-                    tvName.text = it
-                }
+            if (item.groupName.isBlank()) {
+                tvName.gone()
+            } else {
+                tvName.visible()
+                tvName.text = item.groupName
             }
             ivCover.load(item.cover)
         }
@@ -250,12 +223,12 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
                     val bundle = payloads[i] as Bundle
                     bundle.keySet().forEach { key ->
                         when (key) {
-                            "groupName" -> item.groupName.let {
-                                if (it.isBlank()) {
+                            "groupName" -> {
+                                if (item.groupName.isBlank()) {
                                     tvName.gone()
-                                } else{
+                                } else {
                                     tvName.visible()
-                                    tvName.text = it
+                                    tvName.text = item.groupName
                                 }
                             }
                             "cover" -> ivCover.load(item.cover)
@@ -266,14 +239,8 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         }
 
         fun registerListener(item: Any) {
-            binding.root.setOnClickListener {
-                callBack.onItemClick(item)
-            }
-            binding.root.onLongClick {
-                callBack.onItemLongClick(item)
-            }
+            binding.root.setOnClickListener { callBack.onItemClick(item) }
+            binding.root.onLongClick { callBack.onItemLongClick(item) }
         }
-
     }
-
 }

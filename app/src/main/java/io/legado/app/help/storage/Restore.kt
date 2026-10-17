@@ -18,6 +18,7 @@ import io.legado.app.data.entities.DictRule
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.data.entities.KeyboardAssist
 import io.legado.app.data.entities.ReadRecord
+import io.legado.app.data.entities.ReadRecordDaily  // ★ 新增
 import io.legado.app.data.entities.ReplaceRule
 import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.RssStar
@@ -183,6 +184,11 @@ object Restore {
                 }
             }
         }
+        // ★ 新增：恢复每日阅读记录（完整替换，先清空再插入）
+        fileToListT<ReadRecordDaily>(path, "readRecordDaily.json")?.let {
+            appDb.readRecordDailyDao.clear()
+            appDb.readRecordDailyDao.insert(*it.toTypedArray())
+        }
         File(path, "servers.json").takeIf {
             it.exists()
         }?.runCatching {
@@ -327,5 +333,4 @@ object Restore {
         }
         return null
     }
-
 }

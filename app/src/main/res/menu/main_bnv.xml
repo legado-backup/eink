@@ -2,30 +2,20 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     tools:showIn="bottom_navigation_view">
-
+    <item
+        android:id="@+id/menu_home"
+        android:icon="@drawable/ic_4"
+        android:title="首页" />
     <item
         android:id="@+id/menu_bookshelf"
         android:icon="@drawable/ic_bottom_books"
         android:title="@string/bookshelf" />
-
     <item
         android:id="@+id/menu_discovery"
         android:icon="@drawable/ic_bottom_explore"
         android:title="@string/discovery" />
-
-    <item
-        android:id="@+id/menu_lan_transfer"
-        android:icon="@drawable/ic_3"
-        android:title="文件传输" />
-
-    <item
-        android:id="@+id/menu_read_record"
-        android:icon="@drawable/ic_4"
-        android:title="阅读统计" />
-
     <item
         android:id="@+id/menu_my_config"
         android:icon="@drawable/ic_bottom_person"
         android:title="@string/my" />
-
 </menu>

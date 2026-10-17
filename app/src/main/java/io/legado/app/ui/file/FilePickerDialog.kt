@@ -54,6 +54,13 @@ class FilePickerDialog : BaseDialogFragment(R.layout.dialog_file_chooser),
             initPath: String? = null,
             isShowHideDir: Boolean = false,
             allowExtensions: Array<String>? = null,
+            /**
+             * dismiss 时是否 finish 宿主 Activity。
+             *  - 默认 false：嵌入式场景（Launcher / 主页 / 阅读页 / 设置页等）不传即可，
+             *                选完只关对话框，走 CallBack.onResult()，不影响宿主页面。
+             *  - 专门的"文件选择页面"（选完就该关闭这个页面）才显式传 true。
+             */
+            finishHostOnDismiss: Boolean = false,
         ) {
             FilePickerDialog().apply {
                 val bundle = Bundle()
@@ -62,6 +69,7 @@ class FilePickerDialog : BaseDialogFragment(R.layout.dialog_file_chooser),
                 bundle.putBoolean("isShowHideDir", isShowHideDir)
                 bundle.putString("initPath", initPath)
                 bundle.putStringArray("allowExtensions", allowExtensions)
+                bundle.putBoolean("finishHostOnDismiss", finishHostOnDismiss)
                 arguments = bundle
             }.show(manager, tag)
         }
@@ -72,6 +80,10 @@ class FilePickerDialog : BaseDialogFragment(R.layout.dialog_file_chooser),
     private val dirParent = ".."
     private val pathAdapter by lazy { PathAdapter() }
     private val fileAdapter by lazy { FileAdapter() }
+
+    /** 宿主 Activity 是否在 dismiss 时被 finish，默认 false */
+    private val finishHostOnDismiss: Boolean
+        get() = arguments?.getBoolean("finishHostOnDismiss", false) ?: false
 
     override fun onStart() {
         super.onStart()
@@ -104,7 +116,8 @@ class FilePickerDialog : BaseDialogFragment(R.layout.dialog_file_chooser),
     }
 
     private fun initContentView() {
-        binding.rvPath.layoutManager = LinearLayoutManager(activity, RecyclerView.HORIZONTAL, false)
+        binding.rvPath.layoutManager =
+            LinearLayoutManager(activity, RecyclerView.HORIZONTAL, false)
         binding.rvPath.adapter = pathAdapter
 
         binding.rvFile.addItemDecoration(VerticalDivider(requireContext()))
@@ -150,15 +163,28 @@ class FilePickerDialog : BaseDialogFragment(R.layout.dialog_file_chooser),
         return true
     }
 
+    /**
+     * 回调结果。
+     * 优先交给 parentFragment（嵌入式场景），只有没有 parentFragment 实现 CallBack 时，
+     * 才回退到宿主 Activity，避免双重回调导致逻辑被执行两次。
+     */
     private fun setResultData(path: String) {
         val data = Intent().setData(Uri.fromFile(File(path)))
-        (parentFragment as? CallBack)?.onResult(data)
-        (activity as? CallBack)?.onResult(data)
+        val parentCallback = parentFragment as? CallBack
+        if (parentCallback != null) {
+            parentCallback.onResult(data)
+        } else {
+            (activity as? CallBack)?.onResult(data)
+        }
     }
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        activity?.finish()
+        // 仅当调用方显式要求时才 finish 宿主 Activity，
+        // 默认不会触发，避免 Launcher / 主页 / 阅读页等场景被意外关闭。
+        if (finishHostOnDismiss) {
+            activity?.finish()
+        }
     }
 
     @SuppressLint("SetTextI18n")

@@ -1,8 +1,13 @@
 package io.legado.app.ui.main.bookshelf.style1.books
 
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.text.TextUtils
+import android.view.View
 import android.view.ViewGroup
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.viewbinding.ViewBinding
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.data.entities.Book
@@ -17,7 +22,10 @@ import splitties.views.onLongClick
 
 class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
     BaseBooksAdapter<ViewBinding>(context) {
-    private val showBookname = AppConfig.showBookname
+
+    // ★ 写死为 2：永远走 Grid2（叠加布局），无视用户设置
+    private val showBookname = 2
+
     override fun getViewBinding(parent: ViewGroup): ViewBinding {
         return when (showBookname) {
             2 -> ItemBookshelfGrid2Binding.inflate(inflater, parent, false)
@@ -71,18 +79,23 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                     }
                 }
             }
+
             is ItemBookshelfGrid2Binding -> binding.run {
                 if (payloads.isEmpty()) {
                     tvName.text = item.name
                     ivCover.load(item, false)
                     upRefresh(binding, item)
                     upProgress(binding, item)
+                    forceOverlayName()
                 } else {
                     for (i in payloads.indices) {
                         val bundle = payloads[i] as Bundle
                         bundle.keySet().forEach {
                             when (it) {
-                                "name" -> tvName.text = item.name
+                                "name" -> {
+                                    tvName.text = item.name
+                                    forceOverlayName()
+                                }
                                 "cover" -> ivCover.load(item, false)
                                 "refresh" -> upRefresh(binding, item)
                                 "progress" -> upProgress(binding, item)
@@ -92,8 +105,28 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                 }
             }
         }
-
     }
+
+    /** ★★★ 强制书名叠加——覆盖 XML/databinding 结果 ★★★ */
+    private fun ItemBookshelfGrid2Binding.forceOverlayName() {
+        tvName.visibility = View.VISIBLE
+        tvName.background = ColorDrawable(0xB3000000.toInt())   // 70% 半透明黑底
+        tvName.setTextColor(Color.WHITE)
+        tvName.maxLines = 2
+        tvName.ellipsize = TextUtils.TruncateAt.END
+        val pad = (4 * root.resources.displayMetrics.density).toInt()
+        tvName.setPadding(pad * 2, pad, pad * 2, pad)
+
+        (tvName.layoutParams as? ConstraintLayout.LayoutParams)?.apply {
+            topToTop = ConstraintLayout.LayoutParams.UNSET
+            topToBottom = ConstraintLayout.LayoutParams.UNSET
+            bottomToBottom = ivCover.id
+            startToStart = ivCover.id
+            endToEnd = ivCover.id
+            tvName.layoutParams = this
+        }
+    }
+    // ★★★ 强制叠加结束 ★★★
 
     private fun upProgress(binding: ViewBinding, item: Book) {
         val total = item.totalChapterNum
@@ -118,7 +151,7 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                     bvUnread.invisible()
                     rlLoading.visible()
                 } else {
-                    rlLoading.inVisible()
+                    rlLoading.gone()
                     if (AppConfig.showUnread) {
                         bvUnread.setBadgeCount(item.getUnreadChapterNum())
                         bvUnread.setHighlight(item.lastCheckCount > 0)
@@ -132,7 +165,7 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                     bvUnread.invisible()
                     rlLoading.visible()
                 } else {
-                    rlLoading.inVisible()
+                    rlLoading.gone()
                     if (AppConfig.showUnread) {
                         bvUnread.setBadgeCount(item.getUnreadChapterNum())
                         bvUnread.setHighlight(item.lastCheckCount > 0)

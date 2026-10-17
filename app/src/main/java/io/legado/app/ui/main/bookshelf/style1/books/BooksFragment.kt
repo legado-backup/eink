@@ -1,11 +1,22 @@
 package io.legado.app.ui.main.bookshelf.style1.books
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Bundle
+import android.util.AttributeSet
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.core.view.isGone
+import androidx.core.view.updatePadding
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -28,6 +39,7 @@ import io.legado.app.lib.theme.accentColor
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.book.info.BookInfoActivity
 import io.legado.app.ui.main.MainViewModel
+import io.legado.app.ui.widget.number.NumberPickerDialog
 import io.legado.app.utils.cnCompare
 import io.legado.app.utils.flowWithLifecycleAndDatabaseChangeFirst
 import io.legado.app.utils.observeEvent
@@ -44,11 +56,11 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
-/**
- * 书架界面
- */
 class BooksFragment() : BaseFragment(R.layout.fragment_books),
     BaseBooksAdapter.CallBack {
 
@@ -64,17 +76,19 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
 
     private val binding by viewBinding(FragmentBooksBinding::bind)
     private val activityViewModel by activityViewModels<MainViewModel>()
-    private val bookshelfLayout by lazy { AppConfig.bookshelfLayout }
+    private val bookshelfMargin by lazy { AppConfig.bookshelfMargin }
+
+    private val userLayout by lazy { AppConfig.bookshelfLayout }
+    private val isGrid: Boolean get() = userLayout >= 2
+    private val autoSpanCount: Int by lazy { computeAutoSpanCount() }
+
     private val booksAdapter: BaseBooksAdapter<*> by lazy {
-        when (bookshelfLayout) {
-            0 -> {
-                BooksAdapterList(requireContext(), this, this, viewLifecycleOwner.lifecycle)
-            }
-            1 -> {
-                BooksAdapterList2(requireContext(), this, this, viewLifecycleOwner.lifecycle)
-            }
-            else -> {
-                BooksAdapterGrid(requireContext(), this)
+        if (isGrid) {
+            BooksAdapterGrid(requireContext(), this)
+        } else {
+            when (userLayout) {
+                0 -> BooksAdapterList(requireContext(), this, this, viewLifecycleOwner.lifecycle)
+                else -> BooksAdapterList2(requireContext(), this, this, viewLifecycleOwner.lifecycle)
             }
         }
     }
@@ -88,9 +102,20 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     private var upLastUpdateTimeJob: Job? = null
     private var enableRefresh = true
     private var onlyUpdateRead = false
-    private val bookshelfMargin by lazy { AppConfig.bookshelfMargin }
     private var itemCount = 0
     private var totalRows = 0
+
+    private var allBooks: List<Book> = emptyList()
+    private var displayBooks: List<Book> = emptyList()
+    private var currentPage = 1
+    private var totalPages = 1
+    private var pageSize = 20
+
+    private var touchStartX = 0f
+    private var touchStartY = 0f
+    private val swipeThreshold = 80f
+
+    private var pageBar: PageBarView? = null
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         arguments?.let {
@@ -102,88 +127,274 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             binding.refreshLayout.isEnabled = enableRefresh
         }
         initRecyclerView()
+        initBottomPageBar()
         upRecyclerData()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun computeAutoSpanCount(): Int {
+        val dm = resources.displayMetrics
+        val screenWdp = dm.widthPixels / dm.density
+        val usable = screenWdp - bookshelfMargin * 2f
+        val perColumn = 100f + bookshelfMargin
+        return (usable / perColumn).toInt().coerceIn(2, 6)
+    }
+
+    private fun initBottomPageBar() {
+        if (!isGrid) return
+        val root = binding.root as? ViewGroup ?: return
+
+        val bar = PageBarView(requireContext()).apply {
+            onPrevClick = {
+                if (currentPage > 1) {
+                    currentPage--
+                    applyPaging()
+                    binding.rvBookshelf.scrollToPosition(0)
+                    updatePageBar()
+                }
+            }
+            onPageClick = {
+                NumberPickerDialog(requireContext())
+                    .setTitle(getString(R.string.change_page))
+                    .setMaxValue(999)
+                    .setMinValue(1)
+                    .setValue(currentPage)
+                    .show { targetPage ->
+                        val t = targetPage.coerceIn(1, totalPages)
+                        if (t != currentPage) {
+                            currentPage = t
+                            applyPaging()
+                            binding.rvBookshelf.scrollToPosition(0)
+                            updatePageBar()
+                        }
+                    }
+            }
+            onNextClick = {
+                if (currentPage < totalPages) {
+                    currentPage++
+                    applyPaging()
+                    binding.rvBookshelf.scrollToPosition(0)
+                    updatePageBar()
+                }
+            }
+        }
+        pageBar = bar
+
+        val lp = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(8)
+        }
+        root.addView(bar, lp)
+
+        bar.post {
+            val barH = bar.height
+            (binding.refreshLayout.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                it.bottomMargin = barH
+                binding.refreshLayout.layoutParams = it
+            }
+            binding.rvBookshelf.updatePadding(bottom = dp(15))
+            calculatePageSize()
+        }
+
+        updatePageBar()
+    }
+
+    private fun updatePageBar() {
+        pageBar?.setPage(currentPage, totalPages)
+        pageBar?.setPrevEnabled(currentPage > 1)
+        pageBar?.setNextEnabled(currentPage < totalPages)
     }
 
     private fun initRecyclerView() {
         binding.rvBookshelf.setEdgeEffectColor(primaryColor)
+
         upFastScrollerBar()
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
-            activityViewModel.upToc(booksAdapter.getItems(), onlyUpdateRead)
+            activityViewModel.upToc(allBooks, onlyUpdateRead)
         }
-        if (bookshelfLayout >= 2) {
-            binding.rvBookshelf.layoutManager = GridLayoutManager(context, bookshelfLayout)
+
+        if (isGrid) {
+            binding.rvBookshelf.setPadding(0, 0, 0, dp(15))
+            binding.rvBookshelf.clipToPadding = false
+
+            binding.rvBookshelf.layoutManager = GridLayoutManager(context, autoSpanCount)
             binding.rvBookshelf.setRecycledViewPool(activityViewModel.booksGridRecycledViewPool)
+
+            binding.rvBookshelf.addItemDecoration(object : RecyclerView.ItemDecoration() {
+                override fun getItemOffsets(
+                    outRect: Rect,
+                    view: View,
+                    parent: RecyclerView,
+                    state: RecyclerView.State
+                ) {
+                    val position = parent.getChildAdapterPosition(view)
+                    val spanCount = autoSpanCount
+                    val rowIndex = position / spanCount
+                    if (rowIndex == 0) {
+                        outRect.set(bookshelfMargin, bookshelfMargin + 24, bookshelfMargin, bookshelfMargin)
+                    } else {
+                        outRect.set(bookshelfMargin, bookshelfMargin, bookshelfMargin, bookshelfMargin)
+                    }
+                }
+            })
+
+            binding.rvBookshelf.addOnItemTouchListener(object : RecyclerView.OnItemTouchListener {
+                override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                    when (e.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            touchStartX = e.x
+                            touchStartY = e.y
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = abs(e.x - touchStartX)
+                            val dy = abs(e.y - touchStartY)
+                            if (dx > dy + 10) {
+                                rv.parent?.requestDisallowInterceptTouchEvent(true)
+                            }
+                        }
+                        MotionEvent.ACTION_UP -> {
+                            rv.parent?.requestDisallowInterceptTouchEvent(false)
+                            val dx = e.x - touchStartX
+                            val dy = e.y - touchStartY
+                            if (abs(dx) > swipeThreshold && abs(dx) > abs(dy)) {
+                                if (dx < 0) {
+                                    if (currentPage < totalPages) {
+                                        currentPage++
+                                        applyPaging()
+                                        rv.scrollToPosition(0)
+                                        updatePageBar()
+                                    }
+                                } else {
+                                    if (currentPage > 1) {
+                                        currentPage--
+                                        applyPaging()
+                                        rv.scrollToPosition(0)
+                                        updatePageBar()
+                                    }
+                                }
+                                return true
+                            }
+                        }
+                        MotionEvent.ACTION_CANCEL -> {
+                            rv.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
+                    }
+                    return false
+                }
+
+                override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {}
+                override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {}
+            })
+
+            binding.rvBookshelf.post {
+                calculatePageSize()
+                binding.rvBookshelf.postDelayed({
+                    val firstChild = binding.rvBookshelf.getChildAt(0)
+                    if (firstChild != null && firstChild.height > 0) {
+                        calculatePageSize()
+                    }
+                }, 100)
+            }
         } else {
             binding.rvBookshelf.layoutManager = LinearLayoutManager(context)
             binding.rvBookshelf.setRecycledViewPool(activityViewModel.booksListRecycledViewPool)
-        }
-        booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
-        binding.rvBookshelf.adapter = booksAdapter
-        /**
-         * 应该是当初没有使用override val keepScrollPosition = true 加的代码
-         * 最近阅读插入顶部时会造成滚动
-         * 但是采用keepScrollPosition = true复原滚动后,代码就多余了
-         * 采用下面代码反而会向上多滚动一个行
-         * 再加上2025/12/19代码,因为下面的代码会出现很奇怪的自动滚动到顶部现象,没理出原因,注释掉下面代码
-         * **/
-//        booksAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-//            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-//                val layoutManager = binding.rvBookshelf.layoutManager
-//                if (positionStart == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
-//                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-//                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-//                }
-//            }
-//
-//            override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
-//                val layoutManager = binding.rvBookshelf.layoutManager
-//                if (toPosition == 0 && itemCount == 1 && layoutManager is LinearLayoutManager) {
-//                    val scrollTo = layoutManager.findFirstVisibleItemPosition() - itemCount
-//                    binding.rvBookshelf.scrollToPosition(max(0, scrollTo))
-//                }
-//            }
-//        })
-        binding.rvBookshelf.addItemDecoration( object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(
-                outRect: Rect,
-                view: View,
-                parent: RecyclerView,
-                state: RecyclerView.State
-            ) {
-                val position = parent.getChildAdapterPosition(view)
-                if (bookshelfLayout >= 2) {
-                    val spanCount = bookshelfLayout
-                    val rowIndex = position / spanCount
-                    when (rowIndex) {
-                        0 -> { //第一行加额外上边距
-                            outRect.set(bookshelfMargin, bookshelfMargin + 24, bookshelfMargin, bookshelfMargin)
-                        }
-                        totalRows - 1 -> { //最后一行加额外下边距
-                            outRect.set(bookshelfMargin, bookshelfMargin, bookshelfMargin, bookshelfMargin + 24)
-                        }
-                        else -> {
-                            outRect.set(bookshelfMargin, bookshelfMargin, bookshelfMargin, bookshelfMargin)
-                        }
-                    }
-                } else {
-                    when (position) {
-                        0 -> {
-                            outRect.set(0, bookshelfMargin + 24, 0, bookshelfMargin)
-                        }
-                        itemCount - 1 -> {
-                            outRect.set(0, bookshelfMargin, 0, bookshelfMargin + 24)
-                        }
-                        else -> {
-                            outRect.set(0, bookshelfMargin, 0, bookshelfMargin)
-                        }
+
+            binding.rvBookshelf.addItemDecoration(object : RecyclerView.ItemDecoration() {
+                override fun getItemOffsets(
+                    outRect: Rect,
+                    view: View,
+                    parent: RecyclerView,
+                    state: RecyclerView.State
+                ) {
+                    val position = parent.getChildAdapterPosition(view)
+                    if (position == 0) {
+                        outRect.set(0, bookshelfMargin + 24, 0, bookshelfMargin)
+                    } else {
+                        outRect.set(0, bookshelfMargin, 0, bookshelfMargin)
                     }
                 }
-            }
-        })
+            })
+        }
+
+        booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
+        binding.rvBookshelf.adapter = booksAdapter
+
         startLastUpdateTimeJob()
+    }
+
+    private fun calculatePageSize() {
+        val rv = binding.rvBookshelf
+        val h = rv.height
+        if (h <= 0) return
+
+        val bottomPad = rv.paddingBottom
+        val usableH = (h - bottomPad).coerceAtLeast(1)
+
+        val firstChild = rv.getChildAt(0)
+        val rowHeightPx = if (firstChild != null && firstChild.height > 0) {
+            firstChild.height + bookshelfMargin * 2
+        } else {
+            val density = resources.displayMetrics.density
+            (200f * density).toInt() + bookshelfMargin * 2
+        }
+
+        val rows = (usableH / rowHeightPx).coerceAtLeast(1)
+        pageSize = (rows * autoSpanCount).coerceAtLeast(1)
+
+        if (allBooks.isNotEmpty()) {
+            applyPaging()
+        }
+    }
+
+    private fun applyPaging() {
+        if (!isGrid) {
+            displayBooks = allBooks
+        } else {
+            val total = allBooks.size
+            totalPages = if (total == 0) 1 else ceil(total.toDouble() / pageSize).toInt()
+            currentPage = currentPage.coerceIn(1, totalPages)
+            val start = (currentPage - 1) * pageSize
+            val end = min(start + pageSize, total)
+            displayBooks = if (start < total) allBooks.subList(start, end).toList() else emptyList()
+        }
+        booksAdapter.setItems(displayBooks)
+        itemCount = displayBooks.size
+        if (isGrid) {
+            val spanCount = autoSpanCount
+            totalRows =
+                if (itemCount % spanCount == 0) itemCount / spanCount else itemCount / spanCount + 1
+            updatePageBar()
+        }
+        binding.tvEmptyMsg.isGone = itemCount > 0
+        binding.refreshLayout.isEnabled = enableRefresh && itemCount > 0
+    }
+
+    fun onVolumeUp(): Boolean {
+        if (isGrid && currentPage > 1) {
+            currentPage--
+            applyPaging()
+            binding.rvBookshelf.scrollToPosition(0)
+            updatePageBar()
+            return true
+        }
+        return false
+    }
+
+    fun onVolumeDown(): Boolean {
+        if (isGrid && currentPage < totalPages) {
+            currentPage++
+            applyPaging()
+            binding.rvBookshelf.scrollToPosition(0)
+            updatePageBar()
+            return true
+        }
+        return false
     }
 
     private fun upFastScrollerBar() {
@@ -210,31 +421,16 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.isEnabled = enable
     }
 
-    /**
-     * 更新书籍列表信息
-     */
     private fun upRecyclerData() {
         booksFlowJob?.cancel()
         booksFlowJob = viewLifecycleOwner.lifecycleScope.launch {
             appDb.bookDao.flowByGroup(groupId).map { list ->
-                //排序
                 when (bookSort) {
                     1 -> list.sortedByDescending { it.latestChapterTime }
-                    2 -> list.sortedWith { o1, o2 ->
-                        o1.name.cnCompare(o2.name)
-                    }
-
+                    2 -> list.sortedWith { o1, o2 -> o1.name.cnCompare(o2.name) }
                     3 -> list.sortedBy { it.order }
-
-                    // 综合排序 issue #3192
-                    4 -> list.sortedByDescending {
-                        max(it.latestChapterTime, it.durChapterTime)
-                    }
-                    // 按作者排序
-                    5 -> list.sortedWith { o1, o2 ->
-                        o1.author.cnCompare(o2.author)
-                    }
-
+                    4 -> list.sortedByDescending { max(it.latestChapterTime, it.durChapterTime) }
+                    5 -> list.sortedWith { o1, o2 -> o1.author.cnCompare(o2.author) }
                     else -> list.sortedByDescending { it.durChapterTime }
                 }
             }.flowWithLifecycleAndDatabaseChangeFirst(
@@ -244,14 +440,8 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             ).catch {
                 AppLog.put("书架更新出错", it)
             }.conflate().flowOn(Dispatchers.Default).collect { list ->
-                itemCount = list.size
-                val spanCount = bookshelfLayout
-                if (spanCount >= 2) {
-                    totalRows = if (itemCount % spanCount == 0) itemCount / spanCount else itemCount / spanCount + 1
-                }
-                binding.tvEmptyMsg.isGone = itemCount > 0
-                binding.refreshLayout.isEnabled = enableRefresh && itemCount > 0
-                booksAdapter.setItems(list)
+                allBooks = list
+                applyPaging()
                 delay(100)
             }
         }
@@ -259,7 +449,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
 
     private fun startLastUpdateTimeJob() {
         upLastUpdateTimeJob?.cancel()
-        if (!AppConfig.showLastUpdateTime || bookshelfLayout >= 2) {
+        if (!AppConfig.showLastUpdateTime || isGrid) {
             return
         }
         upLastUpdateTimeJob = viewLifecycleOwner.lifecycleScope.launch {
@@ -273,7 +463,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     }
 
     fun getBooks(): List<Book> {
-        return booksAdapter.getItems()
+        return allBooks
     }
 
     fun gotoTop() {
@@ -285,14 +475,13 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     }
 
     fun getBooksCount(): Int {
-        return booksAdapter.itemCount
+        return allBooks.size
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        /**
-         * 将 RecyclerView 中的视图全部回收到 RecycledViewPool 中
-         */
+        pageBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        pageBar = null
         binding.rvBookshelf.setItemViewCacheSize(0)
         binding.rvBookshelf.adapter = null
     }
@@ -323,5 +512,86 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             startLastUpdateTimeJob()
             upFastScrollerBar()
         }
+    }
+}
+
+/**
+ * 底部分页栏——透明背景 + 黑色文字 + 大间距 + 点击页码选页
+ * 从 SearchActivity.PageBarView 复制过来，尺寸略放大。
+ */
+private class PageBarView @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : LinearLayout(context, attrs, defStyleAttr) {
+
+    var onPrevClick: (() -> Unit)? = null
+    var onPageClick: (() -> Unit)? = null
+    var onNextClick: (() -> Unit)? = null
+
+    private val prevBtn: TextView
+    private val pageBtn: TextView
+    private val nextBtn: TextView
+
+    init {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER
+        setBackgroundColor(Color.TRANSPARENT)
+        // 整体上下加一点间距
+        setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
+
+        // 上一页
+        prevBtn = TextView(context).apply {
+            text = "◀"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(48), dpToPx(40))
+            setOnClickListener { onPrevClick?.invoke() }
+        }
+        addView(prevBtn)
+
+        // 页码
+        pageBtn = TextView(context).apply {
+            text = "1/1"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(80), dpToPx(40)).apply {
+                leftMargin = dpToPx(12)
+                rightMargin = dpToPx(12)
+            }
+            setOnClickListener { onPageClick?.invoke() }
+        }
+        addView(pageBtn)
+
+        // 下一页
+        nextBtn = TextView(context).apply {
+            text = "▶"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dpToPx(48), dpToPx(40))
+            setOnClickListener { onNextClick?.invoke() }
+        }
+        addView(nextBtn)
+    }
+
+    private fun dpToPx(dp: Int): Int {
+        return (dp * context.resources.displayMetrics.density + 0.5f).toInt()
+    }
+
+    fun setPage(current: Int, total: Int) {
+        pageBtn.text = "$current/$total"
+    }
+
+    fun setPrevEnabled(enabled: Boolean) {
+        prevBtn.alpha = if (enabled) 1.0f else 0.3f
+        prevBtn.isClickable = enabled
+    }
+
+    fun setNextEnabled(enabled: Boolean) {
+        nextBtn.alpha = if (enabled) 1.0f else 0.3f
+        nextBtn.isClickable = enabled
     }
 }

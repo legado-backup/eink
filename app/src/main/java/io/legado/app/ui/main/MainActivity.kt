@@ -2,17 +2,20 @@
 
 package io.legado.app.ui.main
 
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.Application
 import android.content.Intent
 import android.graphics.Paint
 import android.graphics.PaintFlagsDrawFilter
 import android.os.Bundle
 import android.text.format.DateUtils
+import android.view.KeyEvent
 import android.view.MenuItem
 import android.view.ViewGroup
 import androidx.activity.addCallback
 import androidx.activity.viewModels
 import androidx.core.view.get
-import androidx.core.view.postDelayed
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
@@ -33,19 +36,19 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.help.config.LocalConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.help.storage.Backup
+import io.legado.app.help.update.AppUpdate
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.service.BaseReadAloudService
 import io.legado.app.ui.about.CrashLogsDialog
-import io.legado.app.ui.about.ReadRecordActivity
+import io.legado.app.ui.about.UpdateDialog
 import io.legado.app.ui.association.ImportBookSourceDialog
 import io.legado.app.ui.association.ImportReplaceRuleDialog
 import io.legado.app.ui.association.ImportRssSourceDialog
-import io.legado.app.ui.book.read.config.LanTransferActivity
-import io.legado.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.legado.app.ui.main.bookshelf.style1.BookshelfFragment1
 import io.legado.app.ui.main.bookshelf.style2.BookshelfFragment2
 import io.legado.app.ui.main.explore.ExploreFragment
+import io.legado.app.ui.main.home.HomeFragment
 import io.legado.app.ui.main.my.MyFragment
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.ui.widget.text.BadgeView
@@ -57,19 +60,23 @@ import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import splitties.views.bottomPadding
 import kotlin.coroutines.resume
-import androidx.core.view.get
-import io.legado.app.help.update.AppUpdate
-import io.legado.app.ui.about.UpdateDialog
 import kotlin.time.Duration.Companion.hours
 
 /**
  * 主界面
+ *
+ * 生命周期约定：
+ * Activity 上的延时任务一律走 [lifecycleScope] + [delay]，不用 View.postDelayed。
+ * 后者不可取消 —— Activity 销毁后消息依旧会从主线程队列里跑出来，
+ * 去访问已经不可用的 Fragment / View，是崩溃的温床。
  */
 @Suppress("PrivatePropertyName")
 class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
@@ -77,7 +84,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     BottomNavigationView.OnNavigationItemReselectedListener,
     MainViewModel.CallBack {
 
-    // ==========墨水屏全局抗锯齿 + 抖动==========
     internal val globalAaFilter = PaintFlagsDrawFilter(
         0,
         Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG
@@ -85,38 +91,82 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     override val binding by viewBinding(ActivityMainBinding::inflate)
     override val viewModel by viewModels<MainViewModel>()
-    private val idBookshelf = 0
+
+    private val idHome = 0
+    private val idBookshelf = 1
     private val idBookshelf1 = 11
     private val idBookshelf2 = 12
-    private val idExplore = 1
-    private val idMy = 2
+    private val idExplore = 2
+    private val idMy = 3
+
     private var exitTime: Long = 0
     private var bookshelfReselected: Long = 0
     private var exploreReselected: Long = 0
     private var pagePosition = 0
     private val fragmentMap = hashMapOf<Int, Fragment>()
-    private var bottomMenuCount = 3
+    private var bottomMenuCount = 4
     private val EXIT_INTERVAL = 2000L
-    private val realPositions = arrayOf(idBookshelf, idExplore, idMy)
+
+    private val realPositions = arrayOf(idHome, idBookshelf, idExplore, idMy)
+
     private val adapter by lazy {
         TabFragmentPageAdapter(supportFragmentManager)
     }
     private var onUpBooksBadgeView: BadgeView? = null
 
+    /** 是否打开过二级页面（用于返回时强制回主页） */
+    private var secondaryPageOpened = false
+
+    private val secondaryPageTracker = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityStarted(activity: Activity) {
+            // ★ 只统计「本应用内」的二级页面（如 BookInfoActivity / ReadBookActivity）。
+            //   忽略系统文件选择器、分享面板、系统设置等外部 Activity，
+            //   否则从外部 Activity 返回主界面时会被强制切回首页 tab。
+            if (activity !is MainActivity &&
+                activity.packageName == applicationContext.packageName
+            ) {
+                secondaryPageOpened = true
+            }
+        }
+
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        override fun onActivityResumed(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {}
+    }
+
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         upBottomMenu()
         initView()
         upHomePage()
+
+        // 滑动禁用只在这里做一次。原来放在 HomeFragment 的 onCreateView/onResume 里，
+        // 每次切页都反射一次，HomeFragment 销毁后 ViewPager 也照样被误伤。
+        disableViewPagerSwipe()
+
+        // 注册二级页面追踪
+        application.registerActivityLifecycleCallbacks(secondaryPageTracker)
+
         onBackPressedDispatcher.addCallback(this) {
-            if (pagePosition != 0) {
-                binding.viewPagerMain.currentItem = 0
+            // ① 若有任何可见的 DialogFragment（含 childFragmentManager 里的，如 FilePickerDialog）→ 交回给 dialog
+            if (hasVisibleDialog(supportFragmentManager)) {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
                 return@addCallback
             }
-            (fragmentMap[getFragmentId(0)] as? BookshelfFragment2)?.let {
-                if (it.back()) {
-                    return@addCallback
-                }
+
+            // ② 原有逻辑
+            val isOnHome = binding.bottomNavigationView.selectedItemId == R.id.menu_home
+
+            if (!isOnHome) {
+                switchPageWithoutAnim(realPositions.indexOf(idHome).coerceAtLeast(0))
+                exitTime = 0L
+                return@addCallback
             }
+
             if (System.currentTimeMillis() - exitTime > EXIT_INTERVAL) {
                 toastOnUi(R.string.double_click_exit)
                 exitTime = System.currentTimeMillis()
@@ -130,84 +180,144 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
+    /**
+     * 递归查找 FragmentManager 内是否存在可见的 DialogFragment
+     * FilePickerDialog 是通过 HomeFragment.childFragmentManager 提交的，
+     * 只查 supportFragmentManager.fragments 找不到它。
+     */
+    private fun hasVisibleDialog(fm: FragmentManager): Boolean {
+        for (f in fm.fragments) {
+            if (f is androidx.fragment.app.DialogFragment && f.isVisible) return true
+            if (hasVisibleDialog(f.childFragmentManager)) return true
+        }
+        return false
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 从二级页面返回时强制切主页
+        if (secondaryPageOpened) {
+            secondaryPageOpened = false
+            val homeIndex = realPositions.indexOf(idHome).coerceAtLeast(0)
+            if (binding.bottomNavigationView.selectedItemId != R.id.menu_home) {
+                switchPageWithoutAnim(homeIndex)
+            }
+        }
+    }
+
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         lifecycleScope.launch {
-            //隐私协议
             if (!privacyPolicy()) return@launch
-            //版本更新
             upVersion()
-            //设置本地密码
             setLocalPassword()
             notifyAppCrash()
-            //备份同步
             backupSync()
-            //设置回调
             viewModel.setActivityCallback(this@MainActivity)
-            //自动更新书源
-            binding.viewPagerMain.postDelayed(1000) {
-                viewModel.ruleSubsUp()
-            }
-            //自动更新书籍
+
+            // ★ 改用 delay：lifecycleScope 在 onDestroy 时取消，这些延时任务不会残留到销毁之后。
+            // 原来的 viewPagerMain.postDelayed 无法取消，Activity 重建时旧消息仍会执行。
+            delay(1000)
+            viewModel.ruleSubsUp()
+
             val isAutoRefreshedBook = savedInstanceState?.getBoolean("isAutoRefreshedBook") ?: false
             if (AppConfig.autoRefreshBook && !isAutoRefreshedBook) {
-                binding.viewPagerMain.postDelayed(2000) {
-                    viewModel.upAllBookToc()
+                delay(2000)
+                viewModel.upAllBookToc()
+            }
+
+            delay(3000)
+            viewModel.postLoad()
+        }
+    }
+
+    /**
+     * 音量键翻页：只在书架页时处理，style1 / style2 都支持
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (pagePosition == 1) {
+            val shelf = fragmentMap[getFragmentId(1)]
+            when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP -> {
+                    val up = when (shelf) {
+                        is BookshelfFragment2 -> shelf.onVolumeUp()
+                        is BookshelfFragment1 -> shelf.onVolumeUp()
+                        else -> false
+                    }
+                    if (up) return true
+                }
+
+                KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    val down = when (shelf) {
+                        is BookshelfFragment2 -> shelf.onVolumeDown()
+                        is BookshelfFragment1 -> shelf.onVolumeDown()
+                        else -> false
+                    }
+                    if (down) return true
                 }
             }
-            binding.viewPagerMain.postDelayed(3000) {
-                viewModel.postLoad()
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun switchPageWithoutAnim(index: Int) {
+        binding.viewPagerMain.post {
+            binding.viewPagerMain.setCurrentItem(index, false)
+            // 宽度还没量出来的时候 scrollTo(0) 等于什么都没做，去掉这次无意义的重绘
+            val w = binding.viewPagerMain.width
+            if (w > 0) {
+                binding.viewPagerMain.scrollTo(index * w, 0)
             }
         }
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean = binding.run {
         when (item.itemId) {
-            R.id.menu_bookshelf -> {
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idBookshelf), false)
-            }
-            R.id.menu_discovery -> {
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idExplore), false)
-            }
-            R.id.menu_my_config -> {
-                viewPagerMain.setCurrentItem(realPositions.indexOf(idMy), false)
-            }
-            R.id.menu_read_record -> {
-                startActivity(Intent(this@MainActivity, ReadRecordActivity::class.java))
-                // 不切换ViewPager，也不改变选中状态
-                return@run false
-            }
-            R.id.menu_lan_transfer -> {
-                startActivity(Intent(this@MainActivity, LanTransferActivity::class.java))
-                // 不切换ViewPager，也不改变选中状态
-                return@run false
-            }
+            R.id.menu_home -> switchPageWithoutAnim(realPositions.indexOf(idHome))
+            R.id.menu_bookshelf -> switchPageWithoutAnim(realPositions.indexOf(idBookshelf))
+            R.id.menu_discovery -> switchPageWithoutAnim(realPositions.indexOf(idExplore))
+            R.id.menu_my_config -> switchPageWithoutAnim(realPositions.indexOf(idMy))
         }
         return false
     }
 
     override fun onNavigationItemReselected(item: MenuItem) {
         when (item.itemId) {
+            R.id.menu_home -> {}
             R.id.menu_bookshelf -> {
                 if (System.currentTimeMillis() - bookshelfReselected > 300) {
                     bookshelfReselected = System.currentTimeMillis()
                 } else {
-                    (fragmentMap[getFragmentId(0)] as? BaseBookshelfFragment)?.gotoTop()
+                    val shelf = fragmentMap[getFragmentId(1)]
+                    when (shelf) {
+                        is BookshelfFragment2 -> shelf.gotoTop()
+                        is BookshelfFragment1 -> shelf.gotoTop()
+                        else -> {}
+                    }
                 }
             }
+
             R.id.menu_discovery -> {
                 if (System.currentTimeMillis() - exploreReselected > 300) {
                     exploreReselected = System.currentTimeMillis()
                 } else {
-                    (fragmentMap[1] as? ExploreFragment)?.compressExplore()
+                    (fragmentMap[idExplore] as? ExploreFragment)?.compressExplore()
                 }
             }
-            R.id.menu_read_record -> {
-                startActivity(Intent(this, ReadRecordActivity::class.java))
-            }
-            R.id.menu_lan_transfer -> {
-                startActivity(Intent(this, LanTransferActivity::class.java))
-            }
+        }
+    }
+
+    /**
+     * 禁用主 ViewPager 的横向滑动。
+     * E-ink 主页用代码创建按钮切页，不需要滑动；触摸交给点击处理。
+     */
+    @SuppressLint("SoonBlockedPrivateApi")
+    private fun disableViewPagerSwipe() {
+        try {
+            val field = ViewPager::class.java.getDeclaredField("mTouchSlop")
+            field.isAccessible = true
+            field.setInt(binding.viewPagerMain, Int.MAX_VALUE)
+        } catch (_: Throwable) {
         }
     }
 
@@ -218,12 +328,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         viewPagerMain.addOnPageChangeListener(PageChangeCallback())
         bottomNavigationView.setOnNavigationItemSelectedListener(this@MainActivity)
         bottomNavigationView.setOnNavigationItemReselectedListener(this@MainActivity)
-
-        // 隐藏文字，只显示图标
         bottomNavigationView.labelVisibilityMode = BottomNavigationView.LABEL_VISIBILITY_UNLABELED
-
-        // 设置图标始终为黑色，不随选中状态变色
-        // 使用ColorStateList让所有状态都显示黑色
         val blackColorList = android.content.res.ColorStateList(
             arrayOf(
                 intArrayOf(android.R.attr.state_checked),
@@ -231,23 +336,17 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 intArrayOf()
             ),
             intArrayOf(
-                android.graphics.Color.BLACK,   // 选中状态 = 黑色
-                android.graphics.Color.BLACK,   // 未选中状态 = 黑色
-                android.graphics.Color.BLACK    // 默认状态 = 黑色
+                android.graphics.Color.BLACK,
+                android.graphics.Color.BLACK,
+                android.graphics.Color.BLACK
             )
         )
         bottomNavigationView.itemIconTintList = blackColorList
         bottomNavigationView.itemTextColor = blackColorList
-
-        // 1. 移除边框背景
         if (AppConfig.isEInkMode) {
             bottomNavigationView.background = null
         }
-
-        // 2. 移除 elevation
         bottomNavigationView.elevation = 0f
-
-        // 3. 手动遍历移除内部所有子View的分割线背景
         for (i in 0 until bottomNavigationView.childCount) {
             val child = bottomNavigationView.getChildAt(i)
             if (child is com.google.android.material.bottomnavigation.BottomNavigationMenuView) {
@@ -255,7 +354,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 child.setPadding(0, 0, 0, 0)
             }
         }
-
         bottomNavigationView.setOnApplyWindowInsetsListenerCompat { view, windowInsets ->
             val height = windowInsets.navigationBarHeight
             view.bottomPadding = height
@@ -263,84 +361,74 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
-    /**
-     * 用户隐私与协议
-     */
+    private inline fun <T> CancellableContinuation<T>.resumeOnce(value: T) {
+        if (isActive) resume(value)
+    }
+
     private suspend fun privacyPolicy(): Boolean = suspendCancellableCoroutine sc@{ block ->
         if (LocalConfig.privacyPolicyOk) {
-            block.resume(true)
+            block.resumeOnce(true)
             return@sc
         }
         val privacyPolicy = String(assets.open("privacyPolicy.md").readBytes())
         alert(getString(R.string.privacy_policy), privacyPolicy) {
             positiveButton(R.string.agree) {
                 LocalConfig.privacyPolicyOk = true
-                block.resume(true)
+                block.resumeOnce(true)
             }
             negativeButton(R.string.refuse) {
                 finish()
-                block.resume(false)
+                block.resumeOnce(false)
+            }
+            // ★ 修复：点外面/返回键关掉对话框时，原来两个分支都不会走到，
+            // 协程永久挂起 —— lifecycleScope 里这个 job 再也不会结束。
+            onDismiss {
+                block.resumeOnce(false)
             }
         }
     }
 
-    /**
-     * 版本更新日志
-     */
     private suspend fun upVersion() = suspendCancellableCoroutine sc@{ block ->
         if (LocalConfig.versionCode == appInfo.versionCode) {
             if (AppConfig.autoUpdateVariant) {
                 if (LocalConfig.lastCheckUpdate + 24.hours.inWholeMilliseconds < System.currentTimeMillis()) {
                     AppUpdate.giteeUpdate.check(lifecycleScope)
                         .onSuccess {
-                            showDialogFragment(
-                                UpdateDialog(it)
-                            )
+                            showDialogFragment(UpdateDialog(it))
                         }
                     LocalConfig.lastCheckUpdate = System.currentTimeMillis()
                 }
             }
-            block.resume(null)
+            block.resumeOnce(null)
             return@sc
         }
         LocalConfig.versionCode = appInfo.versionCode
         if (LocalConfig.isFirstOpenApp) {
             val help = String(assets.open("web/help/md/appHelp.md").readBytes())
             val dialog = TextDialog(getString(R.string.help), help, TextDialog.Mode.MD)
-            dialog.setOnDismissListener {
-                block.resume(null)
-            }
+            dialog.setOnDismissListener { block.resumeOnce(null) }
             showDialogFragment(dialog)
         } else if (!BuildConfig.DEBUG) {
             val log = String(assets.open("updateLog.md").readBytes())
             val dialog = TextDialog(getString(R.string.update_log), log, TextDialog.Mode.MD)
-            dialog.setOnDismissListener {
-                block.resume(null)
-            }
+            dialog.setOnDismissListener { block.resumeOnce(null) }
             showDialogFragment(dialog)
         } else {
-            block.resume(null)
+            block.resumeOnce(null)
         }
     }
 
-    /**
-     * 设置本地密码
-     */
     private suspend fun setLocalPassword() = suspendCancellableCoroutine sc@{ block ->
         if (LocalConfig.password != null) {
-            block.resume(null)
+            block.resumeOnce(null)
             return@sc
         }
         alert(R.string.set_local_password, R.string.set_local_password_summary) {
             val editTextBinding = DialogEditTextBinding.inflate(layoutInflater).apply {
                 editView.hint = "password"
             }
-            customView {
-                editTextBinding.root
-            }
-            onDismiss {
-                block.resume(null)
-            }
+            customView { editTextBinding.root }
+            onDismiss { block.resumeOnce(null) }
             okButton {
                 LocalConfig.password = editTextBinding.editView.text.toString()
             }
@@ -351,25 +439,16 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     private fun notifyAppCrash() {
-        if (!LocalConfig.appCrash || BuildConfig.DEBUG) {
-            return
-        }
+        if (!LocalConfig.appCrash || BuildConfig.DEBUG) return
         LocalConfig.appCrash = false
         alert(getString(R.string.draw), "检测到阅读发生了崩溃，是否打开崩溃日志以便报告问题？") {
-            yesButton {
-                showDialogFragment<CrashLogsDialog>()
-            }
+            yesButton { showDialogFragment<CrashLogsDialog>() }
             noButton()
         }
     }
 
-    /**
-     * 备份同步
-     */
     private fun backupSync() {
-        if (!AppConfig.autoCheckNewBackup) {
-            return
-        }
+        if (!AppConfig.autoCheckNewBackup) return
         lifecycleScope.launch {
             val lastBackupFile =
                 withContext(IO) { AppWebDav.lastBackUp().getOrNull() } ?: return@launch
@@ -377,9 +456,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 LocalConfig.lastBackup = lastBackupFile.lastModify
                 alert(R.string.restore, R.string.webdav_after_local_restore_confirm) {
                     cancelButton()
-                    okButton {
-                        viewModel.restoreWebDav(lastBackupFile.displayName)
-                    }
+                    okButton { viewModel.restoreWebDav(lastBackupFile.displayName) }
                 }
             }
         }
@@ -387,27 +464,29 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        // 与原实现保持一致：只要开着自动刷新就落盘，重建后跳过 upAllBookToc()。
+        // 已知的小瑕疵：如果在隐私弹窗 / 前 2 秒延迟期间发生配置变更，
+        // 这次刷新其实还没跑也会被记成"已刷新"。属于原有行为，本次不动。
         if (AppConfig.autoRefreshBook) {
             outState.putBoolean("isAutoRefreshedBook", true)
         }
     }
 
     override fun onDestroy() {
+        application.unregisterActivityLifecycleCallbacks(secondaryPageTracker)
         super.onDestroy()
-        Coroutine.async {
-            BookHelp.clearInvalidCache()
-        }
+        Coroutine.async { BookHelp.clearInvalidCache() }
         if (!BuildConfig.DEBUG) {
             Backup.autoBack(this)
         }
     }
 
-    /**
-     * 如果重启太快fragment不会重建,这里更新一下书架的排序
-     */
     override fun recreate() {
-        (fragmentMap[getFragmentId(0)] as? BaseBookshelfFragment)?.run {
-            upSort()
+        val shelf = fragmentMap[getFragmentId(1)]
+        when (shelf) {
+            is BookshelfFragment2 -> shelf.upSort()
+            is BookshelfFragment1 -> shelf.upSort()
+            else -> {}
         }
         super.recreate()
     }
@@ -415,7 +494,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     override fun observeLiveBus() {
         viewModel.onUpBooksLiveData.observe(this) {
             if (onUpBooksBadgeView == null) {
-                onUpBooksBadgeView = binding.bottomNavigationView.addBadgeView(0)
+                onUpBooksBadgeView = binding.bottomNavigationView.addBadgeView(1)
             }
             onUpBooksBadgeView!!.setBadgeCount(it)
         }
@@ -431,7 +510,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 }
                 upBottomMenu()
                 if (it) {
-                    viewPagerMain.setCurrentItem(bottomMenuCount - 1, false)
+                    switchPageWithoutAnim(bottomMenuCount - 1)
                 }
             }
         }
@@ -445,7 +524,9 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         binding.bottomNavigationView.menu.let { menu ->
             menu.findItem(R.id.menu_discovery).isVisible = showDiscovery
         }
-        var index = 0
+        realPositions[0] = idHome
+        realPositions[1] = idBookshelf
+        var index = 1
         if (showDiscovery) {
             index++
             realPositions[index] = idExplore
@@ -457,13 +538,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     private fun upHomePage() {
-        when (AppConfig.defaultHomePage) {
-            "bookshelf" -> {}
-            "explore" -> if (AppConfig.showDiscovery) {
-                binding.viewPagerMain.setCurrentItem(realPositions.indexOf(idExplore), false)
-            }
-            "my" -> binding.viewPagerMain.setCurrentItem(realPositions.indexOf(idMy), false)
-        }
+        switchPageWithoutAnim(realPositions.indexOf(idHome))
     }
 
     private fun getFragmentId(position: Int): Int {
@@ -477,7 +552,14 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private inner class PageChangeCallback : ViewPager.SimpleOnPageChangeListener() {
         override fun onPageSelected(position: Int) {
             pagePosition = position
-            binding.bottomNavigationView.menu[realPositions[position]].isChecked = true
+            val menuId = when (realPositions[position]) {
+                idHome -> R.id.menu_home
+                idBookshelf -> R.id.menu_bookshelf
+                idExplore -> R.id.menu_discovery
+                idMy -> R.id.menu_my_config
+                else -> return
+            }
+            binding.bottomNavigationView.menu.findItem(menuId)?.isChecked = true
         }
     }
 
@@ -493,7 +575,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             val position = (any as MainFragmentInterface).position
                 ?: return POSITION_NONE
             val fragmentId = getId(position)
-            if ((fragmentId == idBookshelf1 && any is BookshelfFragment1)
+            if ((fragmentId == idHome && any is HomeFragment)
+                || (fragmentId == idBookshelf1 && any is BookshelfFragment1)
                 || (fragmentId == idBookshelf2 && any is BookshelfFragment2)
                 || (fragmentId == idExplore && any is ExploreFragment)
                 || (fragmentId == idMy && any is MyFragment)
@@ -505,6 +588,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
 
         override fun getItem(position: Int): Fragment {
             return when (getId(position)) {
+                idHome -> HomeFragment(position)
                 idBookshelf1 -> BookshelfFragment1(position)
                 idBookshelf2 -> BookshelfFragment2(position)
                 idExplore -> ExploreFragment(position)
@@ -528,17 +612,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
     }
 
-    override fun openImportUi(type:Int, source: String) {
+    override fun openImportUi(type: Int, source: String) {
         when (type) {
-            0 -> showDialogFragment(
-                ImportBookSourceDialog(source)
-            )
-            1 -> showDialogFragment(
-                ImportRssSourceDialog(source)
-            )
-            2 -> showDialogFragment(
-                ImportReplaceRuleDialog(source)
-            )
+            0 -> showDialogFragment(ImportBookSourceDialog(source))
+            1 -> showDialogFragment(ImportRssSourceDialog(source))
+            2 -> showDialogFragment(ImportReplaceRuleDialog(source))
         }
     }
 }

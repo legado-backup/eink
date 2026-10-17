@@ -1,37 +1,44 @@
 package io.legado.app.ui.book.read
 
 import io.legado.app.utils.EPDManager
-
 import android.content.Context
+import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.Dispatchers
 import android.annotation.SuppressLint
-import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
+import android.view.ActionMode
 import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
-import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.SearchEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.addCallback
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.get
 import androidx.core.view.size
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.legado.app.BuildConfig
@@ -72,12 +79,11 @@ import io.legado.app.lib.dialogs.selector
 import io.legado.app.lib.theme.accentColor
 import io.legado.app.model.ReadAloud
 import io.legado.app.model.ReadBook
+import io.legado.app.model.SourceCallBack
 import io.legado.app.model.analyzeRule.AnalyzeRule
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setChapter
 import io.legado.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContext
-import io.legado.app.utils.GSON
-import io.legado.app.utils.fromJsonObject
-import io.legado.app.utils.isJsonObject
+import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
 import io.legado.app.model.localBook.EpubFile
 import io.legado.app.model.localBook.MobiFile
 import io.legado.app.receiver.NetworkChangedListener
@@ -106,26 +112,30 @@ import io.legado.app.ui.book.read.page.provider.ChapterProvider
 import io.legado.app.ui.book.read.page.provider.LayoutProgressListener
 import io.legado.app.ui.book.searchContent.SearchContentActivity
 import io.legado.app.ui.book.searchContent.SearchResult
-import io.legado.app.model.SourceCallBack
 import io.legado.app.ui.book.source.edit.BookSourceEditActivity
 import io.legado.app.ui.book.toc.TocActivityResult
 import io.legado.app.ui.book.toc.rule.TxtTocRuleDialog
 import io.legado.app.ui.browser.WebViewActivity
 import io.legado.app.ui.dict.DictDialog
+import io.legado.app.ui.file.FilePickerDialog
 import io.legado.app.ui.file.HandleFileContract
 import io.legado.app.ui.login.SourceLoginActivity
+import io.legado.app.ui.login.SourceLoginJsExtensions
 import io.legado.app.ui.replace.ReplaceRuleActivity
 import io.legado.app.ui.replace.edit.ReplaceEditActivity
 import io.legado.app.ui.widget.PopupAction
 import io.legado.app.ui.widget.dialog.PhotoDialog
 import io.legado.app.utils.ACache
 import io.legado.app.utils.Debounce
+import io.legado.app.utils.GSON
 import io.legado.app.utils.LogUtils
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.StartActivityContract
 import io.legado.app.utils.applyOpenTint
 import io.legado.app.utils.buildMainHandler
 import io.legado.app.utils.dismissDialogFragment
+import io.legado.app.utils.dpToPx
+import io.legado.app.utils.fromJsonObject
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.hexString
@@ -138,6 +148,7 @@ import io.legado.app.utils.navigationBarGravity
 import io.legado.app.utils.observeEvent
 import io.legado.app.utils.observeEventSticky
 import io.legado.app.utils.postEvent
+import io.legado.app.utils.putPrefString
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.showHelp
 import io.legado.app.utils.startActivity
@@ -146,18 +157,17 @@ import io.legado.app.utils.sysScreenOffTime
 import io.legado.app.utils.throttle
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.visible
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.net.toUri
-import androidx.lifecycle.Lifecycle
 import com.script.rhino.runScriptWithContext
-import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.paramPattern
-import io.legado.app.ui.login.SourceLoginJsExtensions
 
 /**
  * 阅读界面
@@ -178,7 +188,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     TxtTocRuleDialog.CallBack,
     ColorPickerDialogListener,
     LayoutProgressListener,
-    SensorEventListener {
+    SensorEventListener,
+    FilePickerDialog.CallBack {
 
     private val tocActivity =
         registerForActivityResult(TocActivityResult()) {
@@ -214,7 +225,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 viewModel.searchResultIndex = index
                 binding.searchMenu.updateSearchResultIndex(index)
                 binding.searchMenu.selectedSearchResult?.let { currentResult ->
-                    ReadBook.saveCurrentBookProgress() //退出全文搜索恢复此时进度
+                    ReadBook.saveCurrentBookProgress()
                     skipToSearch(currentResult)
                     showActionMenu()
                 }
@@ -235,6 +246,51 @@ class ReadBookActivity : BaseReadBookActivity(),
             viewModel.saveImage(it.value, uri)
         }
     }
+
+    // 标题样式弹窗相关（用 overlay 而不是 AlertDialog）
+    private var titleStyleOverlay: View? = null
+    private var titleStyleEditText: EditText? = null
+    private var isPickingTitleTxt = false
+
+    // 标题样式制作页 launcher
+    private val titleStyleMakerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            val html = result.data?.getStringExtra(TitleStyleMakerActivity.RESULT_HTML)
+                ?: return@registerForActivityResult
+            val edit = titleStyleEditText
+            if (edit != null) {
+                edit.setText(html)
+                edit.setSelection(html.length)
+            }
+            putPrefString("book_title_html", html)
+            ReadBook.loadContent(false)
+        }
+
+    // 系统文件选择器（打开 txt）
+    private val pickTxtLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        loadTitleTxtFromUri(uri)
+    }
+
+    // 系统文件保存器（导出 txt）
+    private val createTxtLauncher: ActivityResultLauncher<String> =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri == null) return@registerForActivityResult
+            try {
+                val text = titleStyleEditText?.text?.toString() ?: ""
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    output.bufferedWriter(Charsets.UTF_8).use { it.write(text) }
+                }
+                Toast.makeText(this, "已导出", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                AppLog.put("导出 txt 出错: ${e.localizedMessage}", e)
+                Toast.makeText(this, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
     private var menu: Menu? = null
     private var backupJob: Job? = null
     private var tts: TTS? = null
@@ -273,53 +329,44 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    //恢复跳转前进度对话框的交互结果
     private var confirmRestoreProcess: Boolean? = null
     private val networkChangedListener by lazy {
         NetworkChangedListener(this)
     }
     private var justInitData: Boolean = false
     private var syncDialog: AlertDialog? = null
-    
-    // 倾斜回弹翻页-全自动基准校准
-private lateinit var sensorManager: SensorManager
-private var accelSensor: Sensor? = null
 
-// 翻页动作锁：防止单次摆动重复触发翻页
-private var isShakeTurnPage = false
+    private lateinit var sensorManager: SensorManager
+    private var accelSensor: Sensor? = null
 
-// 基准校准相关配置
-private var baseTiltX = 0f
-private var stableDetectTime = 0L
-private val autoCalibrateStayMs = 2000L
-private val baseErrorRange = 0.8f
+    private var isShakeTurnPage = false
 
-// 倾斜触发阈值
-private val swingOutThreshold = 1.2f
-private val swingBackThreshold = 2.0f
-private val backTolerance = 1.8f
+    private var baseTiltX = 0f
+    private var stableDetectTime = 0L
+    private val autoCalibrateStayMs = 2000L
+    private val baseErrorRange = 0.8f
 
-// 状态机：左右倾斜统一归类，回弹均触发下一页
-private enum class TiltState {
-    IDLE,
-    TILT_SIDE
-}
-private var currentTiltState = TiltState.IDLE
-private var preSensorX = 0f
+    private val swingOutThreshold = 1.2f
+    private val swingBackThreshold = 2.0f
+    private val backTolerance = 1.8f
 
-/**
- * 统一翻页入口：固定只触发下一页
- */
-private fun triggerTurnPage() {
-    if (isShakeTurnPage) return
-    isShakeTurnPage = true
-    binding.readView.pageDelegate?.keyTurnPage(PageDirection.NEXT)
-    currentTiltState = TiltState.IDLE
-    lifecycleScope.launch(Dispatchers.Main) {
-        delay(1250)
-        isShakeTurnPage = false
+    private enum class TiltState {
+        IDLE,
+        TILT_SIDE
     }
-}
+    private var currentTiltState = TiltState.IDLE
+    private var preSensorX = 0f
+
+    private fun triggerTurnPage() {
+        if (isShakeTurnPage) return
+        isShakeTurnPage = true
+        binding.readView.pageDelegate?.keyTurnPage(PageDirection.NEXT)
+        currentTiltState = TiltState.IDLE
+        lifecycleScope.launch(Dispatchers.Main) {
+            delay(1250)
+            isShakeTurnPage = false
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
@@ -333,12 +380,15 @@ private fun triggerTurnPage() {
         ReadBook.register(this)
         interceptVolumeKeyAtWindowLevel()
         onBackPressedDispatcher.addCallback(this) {
+            if (titleStyleOverlay != null) {
+                dismissTitleStyleOverlay()
+                return@addCallback
+            }
             if (isShowingSearchResult) {
                 exitSearchMenu()
                 restoreLastBookProcess()
                 return@addCallback
             }
-            //拦截返回供恢复阅读进度
             if (ReadBook.lastBookProgress != null && confirmRestoreProcess != false) {
                 restoreLastBookProcess()
                 return@addCallback
@@ -397,75 +447,72 @@ private fun triggerTurnPage() {
     }
 
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
-override fun onResume() {
-    super.onResume()
-    // 初始化墨水屏管理 + 读取用户选择的刷新模式
+    override fun onResume() {
+        super.onResume()
         EPDManager.init(this)
-    val refreshMode = getPrefString("eink_refresh_mode", "12") ?: "12"
-EPDManager.setMode(refreshMode)
+        val refreshMode = getPrefString("eink_refresh_mode", "12") ?: "12"
+        EPDManager.setMode(refreshMode)
 
-    // 初始化加速度计晃动翻页
-    sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    accelSensor?.let {
-        sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
-    }
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        accelSensor?.let {
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
 
-    if (bookChanged) {
-        bookChanged = false
-        ReadBook.callBack = this
-        viewModel.initData(intent)
-        justInitData = true
-    } else {
-        ReadBook.webBookProgress?.let {
-            ReadBook.setProgress(it)
-            ReadBook.webBookProgress = null
+        if (bookChanged) {
+            bookChanged = false
+            ReadBook.callBack = this
+            viewModel.initData(intent)
+            justInitData = true
+        } else {
+            ReadBook.webBookProgress?.let {
+                ReadBook.setProgress(it)
+                ReadBook.webBookProgress = null
+            }
         }
-    }
-    upSystemUiVisibility()
-    registerReceiver(timeBatteryReceiver, timeBatteryReceiver.filter)
-    binding.readView.upTime()
-    screenOffTimerStart()
-    networkChangedListener.register()
-    networkChangedListener.onNetworkChanged = {
-        if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
-            ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
+        upSystemUiVisibility()
+        registerReceiver(timeBatteryReceiver, timeBatteryReceiver.filter)
+        binding.readView.upTime()
+        screenOffTimerStart()
+        networkChangedListener.register()
+        networkChangedListener.onNetworkChanged = {
+            if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
+                ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
+            }
         }
+        initReadTimer()
     }
-    initReadTimer()
-}
 
     override fun onPause() {
-		   // 退出阅读切回自动模式
         EPDManager.setMode(EPDManager.Mode.EPD_AUTO)
-    EPDManager.release()
-    // 注销传感器
-    sensorManager.unregisterListener(this)
-    
-    stopReadTimer()
-    super.onPause()
-    autoPageStop()
-    backupJob?.cancel()
-    recordHeartJob?.cancel()
-    ReadBook.saveRead()
-    ReadBook.cancelPreDownloadTask()
-    unregisterReceiver(timeBatteryReceiver)
-    upSystemUiVisibility()
-    if (!BuildConfig.DEBUG && ReadBook.inBookshelf) {
-        if (AppConfig.syncBookProgressPlus) {
-            ReadBook.syncProgress()
-        } else {
-            ReadBook.uploadProgress()
+        EPDManager.release()
+        sensorManager.unregisterListener(this)
+
+        stopReadTimer()
+        super.onPause()
+        autoPageStop()
+        backupJob?.cancel()
+        recordHeartJob?.cancel()
+        ReadBook.saveRead()
+        ReadBook.cancelPreDownloadTask()
+        unregisterReceiver(timeBatteryReceiver)
+        upSystemUiVisibility()
+        if (!BuildConfig.DEBUG && ReadBook.inBookshelf) {
+            if (AppConfig.syncBookProgressPlus) {
+                ReadBook.syncProgress()
+            } else {
+                ReadBook.uploadProgress()
+            }
         }
+        if (!BuildConfig.DEBUG) {
+            Backup.autoBack(this)
+        }
+        justInitData = false
+        networkChangedListener.unRegister()
     }
-    if (!BuildConfig.DEBUG) {
-        Backup.autoBack(this)
-    }
-    justInitData = false
-    networkChangedListener.unRegister()
-}
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
+        menu.add(Menu.NONE, MENU_TITLE_STYLE, 0, "标题样式")
         menuInflater.inflate(R.menu.book_read, menu)
         menu.iconItemOnLongClick(R.id.menu_change_source) {
             PopupMenu(this, it).apply {
@@ -497,9 +544,6 @@ EPDManager.setMode(refreshMode)
         return super.onMenuOpened(featureId, menu)
     }
 
-    /**
-     * 更新菜单
-     */
     private fun upMenu() {
         val menu = menu ?: return
         val book = ReadBook.book ?: return
@@ -514,11 +558,6 @@ EPDManager.setMode(refreshMode)
                 else -> when (item.itemId) {
                     R.id.menu_enable_replace -> item.isChecked = book.getUseReplaceRule()
                     R.id.menu_re_segment -> item.isChecked = book.getReSegment()
-//                    R.id.menu_enable_review -> {
-//                        item.isVisible = BuildConfig.DEBUG
-//                        item.isChecked = AppConfig.enableReview
-//                    }
-
                     R.id.menu_reverse_content -> item.isVisible = onLine
                     R.id.menu_del_ruby_tag -> item.isChecked = book.getDelTag(Book.rubyTag)
                     R.id.menu_del_h_tag -> item.isChecked = book.getDelTag(Book.hTag)
@@ -534,9 +573,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 菜单
-     */
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
             R.id.menu_change_source,
@@ -615,12 +651,6 @@ EPDManager.setMode(refreshMode)
                 ReadBook.loadContent(false)
             }
 
-//            R.id.menu_enable_review -> {
-//                AppConfig.enableReview = !AppConfig.enableReview
-//                item.isChecked = AppConfig.enableReview
-//                ReadBook.loadContent(false)
-//            }
-
             R.id.menu_del_ruby_tag -> ReadBook.book?.let {
                 item.isChecked = !item.isChecked
                 if (item.isChecked) {
@@ -669,7 +699,7 @@ EPDManager.setMode(refreshMode)
                     val imageStyle = imgStyles[index]
                     ReadBook.book?.setImageStyle(imageStyle)
                     if (imageStyle == Book.imgStyleSingle) {
-                        ReadBook.book?.setPageAnim(0)  // 切换图片样式single后，自动切换为覆盖
+                        ReadBook.book?.setPageAnim(0)
                         binding.readView.upPageAnim()
                     }
                     ReadBook.loadContent(false)
@@ -705,6 +735,8 @@ EPDManager.setMode(refreshMode)
             R.id.menu_effective_replaces -> showDialogFragment<EffectiveReplacesDialog>()
 
             R.id.menu_help -> showHelp()
+
+            MENU_TITLE_STYLE -> showTitleStyleOverlay()
         }
         return super.onCompatOptionsItemSelected(item)
     }
@@ -719,9 +751,6 @@ EPDManager.setMode(refreshMode)
         return onCompatOptionsItemSelected(item)
     }
 
-        /**
-     * 按键拦截,显示菜单
-     */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
         val action = event.action
@@ -740,19 +769,14 @@ EPDManager.setMode(refreshMode)
         return super.dispatchKeyEvent(event)
     }
 
-
-    /**
-     * 鼠标滚轮事件
-     */
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (0 != (event.source and InputDevice.SOURCE_CLASS_POINTER)) {
             if (event.action == MotionEvent.ACTION_SCROLL) {
                 val axisValue = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 LogUtils.d("onGenericMotionEvent", "axisValue = $axisValue")
-                // 获得垂直坐标上的滚动方向
-                if (axisValue < 0.0f) { // 滚轮向下滚
+                if (axisValue < 0.0f) {
                     mouseWheelPage(PageDirection.NEXT, axisValue)
-                } else { // 滚轮向上滚
+                } else {
                     mouseWheelPage(PageDirection.PREV, axisValue)
                 }
                 return true
@@ -761,9 +785,6 @@ EPDManager.setMode(refreshMode)
         return super.onGenericMotionEvent(event)
     }
 
-        /**
-     * 按键事件 —— 音量键已移到 dispatchKeyEvent 处理
-     */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (menuLayoutIsVisible) {
             return super.onKeyDown(keyCode, event)
@@ -800,18 +821,10 @@ EPDManager.setMode(refreshMode)
         return super.onKeyDown(keyCode, event)
     }
 
-
-        /**
-     * 松开按键事件 —— 音量键已移到 dispatchKeyEvent 处理
-     */
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         return super.onKeyUp(keyCode, event)
     }
 
-
-    /**
-     * view触摸,文字选择
-     */
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouch(v: View, event: MotionEvent): Boolean = binding.run {
         if (!binding.readView.isTextSelected) {
@@ -855,9 +868,6 @@ EPDManager.setMode(refreshMode)
         return true
     }
 
-    /**
-     * 更新文字选择开始位置
-     */
     override fun upSelectedStart(x: Float, y: Float, top: Float) = binding.run {
         cursorLeft.x = x - cursorLeft.width
         cursorLeft.y = y
@@ -866,18 +876,12 @@ EPDManager.setMode(refreshMode)
         textMenuPosition.y = top
     }
 
-    /**
-     * 更新文字选择结束位置
-     */
     override fun upSelectedEnd(x: Float, y: Float) = binding.run {
         cursorRight.x = x
         cursorRight.y = y
         cursorRight.visible(true)
     }
 
-    /**
-     * 取消文字选择
-     */
     override fun onCancelSelect() = binding.run {
         cursorLeft.invisible()
         cursorRight.invisible()
@@ -888,9 +892,6 @@ EPDManager.setMode(refreshMode)
         return binding.readView.onTouchEvent(event)
     }
 
-    /**
-     * 显示文本操作菜单
-     */
     override fun showTextActionMenu() {
         val navigationBarHeight =
             if (!ReadBookConfig.hideNavigationBar && navigationBarGravity == Gravity.BOTTOM)
@@ -906,14 +907,8 @@ EPDManager.setMode(refreshMode)
         )
     }
 
-    /**
-     * 当前选择的文本
-     */
     override val selectedText: String get() = binding.readView.getSelectText()
 
-    /**
-     * 文本选择菜单操作
-     */
     override fun onMenuItemSelected(itemId: Int): Boolean {
         when (itemId) {
             R.id.menu_aloud -> when (AppConfig.contentSelectSpeakMod) {
@@ -967,9 +962,6 @@ EPDManager.setMode(refreshMode)
         return false
     }
 
-    /**
-     * 文本选择菜单操作完成
-     */
     override fun onMenuActionFinally() = binding.run {
         textActionMenu.dismiss()
         readView.cancelSelect()
@@ -982,24 +974,17 @@ EPDManager.setMode(refreshMode)
         tts?.speak(text)
     }
 
-    /**
-     * 鼠标滚轮翻页
-     */
     private fun mouseWheelPage(direction: PageDirection, distance: Float) {
         if (menuLayoutIsVisible || !AppConfig.mouseWheelPage) {
             return
         }
         if (binding.readView.isScroll) {
-            // 滚动视图时滚动,否则翻页
             (binding.readView.pageDelegate as? ScrollPageDelegate)?.curPage?.scroll((distance * 50).toInt())
         } else {
             keyPageDebounce(direction, mouseWheel = true, longPress = false)
         }
     }
 
-    /**
-     * 音量键翻页
-     */
     private fun volumeKeyPage(direction: PageDirection, longPress: Boolean): Boolean {
         if (!AppConfig.volumeKeyPage) {
             return false
@@ -1062,9 +1047,6 @@ EPDManager.setMode(refreshMode)
         viewModel.loadChapterList(book)
     }
 
-    /**
-     * 内容加载完成
-     */
     override fun contentLoadFinish() {
         if (intent.getBooleanExtra("readAloud", false)) {
             intent.removeExtra("readAloud")
@@ -1073,9 +1055,6 @@ EPDManager.setMode(refreshMode)
         loadStates = true
     }
 
-    /**
-     * 更新内容
-     */
     override fun upContent(
         relativePosition: Int,
         resetPageOffset: Boolean,
@@ -1122,9 +1101,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 页面改变
-     */
     override fun pageChanged() {
         pageChanged = true
         binding.readView.onPageChange()
@@ -1136,20 +1112,14 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 更新进度条位置
-     */
     private fun upSeekBarProgress() {
         val progress = when (AppConfig.progressBarBehavior) {
             "page" -> ReadBook.durPageIndex
-            else /* chapter */ -> ReadBook.durChapterIndex
+            else -> ReadBook.durChapterIndex
         }
         binding.readMenu.setSeekPage(progress)
     }
 
-    /**
-     * 显示菜单
-     */
     override fun showMenuBar() {
         binding.readMenu.runMenuIn()
     }
@@ -1190,16 +1160,10 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 显示朗读菜单
-     */
     override fun showReadAloudDialog() {
         showDialogFragment<ReadAloudDialog>()
     }
 
-    /**
-     * 自动翻页
-     */
     override fun autoPage() {
         ReadAloud.stop(this)
         if (isAutoPage) {
@@ -1238,25 +1202,16 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 替换
-     */
     override fun openReplaceRule() {
         replaceActivity.launch(Intent(this, ReplaceRuleActivity::class.java))
     }
 
-    /**
-     * 打开目录
-     */
     override fun openChapterList() {
         ReadBook.book?.let {
             tocActivity.launch(it.bookUrl)
         }
     }
 
-    /**
-     * 打开搜索界面
-     */
     override fun openSearchActivity(searchWord: String?) {
         val book = ReadBook.book ?: return
         searchContentActivity.launch {
@@ -1271,23 +1226,14 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 禁用书源
-     */
     override fun disableSource() {
         viewModel.disableSource()
     }
 
-    /**
-     * 显示阅读样式配置
-     */
     override fun showReadStyle() {
         showDialogFragment<ReadStyleDialog>()
     }
 
-    /**
-     * 显示更多设置
-     */
     override fun showMoreSetting() {
         showDialogFragment<MoreConfigDialog>()
     }
@@ -1296,15 +1242,11 @@ EPDManager.setMode(refreshMode)
         showDialogFragment<MoreConfigDialog>()
     }
 
-    /**
-     * 更新状态栏,导航栏
-     */
     override fun upSystemUiVisibility() {
         upSystemUiVisibility(isInMultiWindow, !menuLayoutIsVisible, bottomDialog > 0)
         upNavigationBarColor()
     }
 
-    // 退出全文搜索
     override fun exitSearchMenu() {
         if (isShowingSearchResult) {
             isShowingSearchResult = false
@@ -1315,7 +1257,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /* 恢复到 全文搜索/进度条跳转前的位置 */
     private fun restoreLastBookProcess() {
         if (confirmRestoreProcess == true) {
             ReadBook.restoreLastBookProgress()
@@ -1324,7 +1265,7 @@ EPDManager.setMode(refreshMode)
                 setMessage(R.string.restore_last_book_process)
                 yesButton {
                     confirmRestoreProcess = true
-                    ReadBook.restoreLastBookProgress() //恢复启动全文搜索前的进度
+                    ReadBook.restoreLastBookProgress()
                 }
                 noButton {
                     ReadBook.lastBookProgress = null
@@ -1357,7 +1298,7 @@ EPDManager.setMode(refreshMode)
         alert(R.string.chapter_pay) {
             setMessage(chapter.title)
             yesButton {
-                Coroutine.async(lifecycleScope) {
+                Coroutine.async(lifecycleScope, IO) {
                     val source =
                         ReadBook.bookSource ?: throw NoStackTraceException("no book source")
                     val payAction = source.getContentRule().payAction
@@ -1387,7 +1328,6 @@ EPDManager.setMode(refreshMode)
                             putExtra("sourceType", bookSource?.getSourceType())
                         }
                     } else if (it.isTrue()) {
-                        //购买成功后刷新目录
                         ReadBook.book?.let {
                             ReadBook.curTextChapter = null
                             BookHelp.delContent(book, chapter)
@@ -1402,9 +1342,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 点击图片
-     */
     override fun oldClickImg(src: String): Boolean {
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
@@ -1412,11 +1349,12 @@ EPDManager.setMode(refreshMode)
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
             val click = urlOptionMap?.get("click")
             if (click != null) {
-                Coroutine.async(lifecycleScope,IO) {
+                Coroutine.async(lifecycleScope, IO) {
                     val source = ReadBook.bookSource ?: return@async
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
                     val book = ReadBook.book ?: return@async
-                    val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+                    val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+                        ?: throw Exception("no find chapter")
                     runScriptWithContext {
                         source.evalJS(click) {
                             put("java", java)
@@ -1434,7 +1372,8 @@ EPDManager.setMode(refreshMode)
             Coroutine.async(lifecycleScope, IO) {
                 val source = ReadBook.bookSource ?: return@async
                 val book = ReadBook.book ?: return@async
-                val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+                val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+                    ?: throw Exception("no find chapter")
                 val urlNoOption = src.take(urlMatcher.start())
                 AnalyzeRule(book, source).apply {
                     setCoroutineContext(coroutineContext)
@@ -1451,11 +1390,12 @@ EPDManager.setMode(refreshMode)
     }
 
     override fun clickImg(click: String, src: String) {
-        Coroutine.async(lifecycleScope,IO) {
+        Coroutine.async(lifecycleScope, IO) {
             val source = ReadBook.bookSource ?: return@async
             val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
             val book = ReadBook.book ?: return@async
-            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+                ?: throw Exception("no find chapter")
             runScriptWithContext {
                 source.evalJS(click) {
                     put("java", java)
@@ -1469,10 +1409,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-
-    /**
-     * 朗读按钮
-     */
     override fun onClickReadAloud() {
         autoPageStop()
         when {
@@ -1530,9 +1466,6 @@ EPDManager.setMode(refreshMode)
         showHelp("readMenuHelp")
     }
 
-    /**
-     * 长按图片
-     */
     @SuppressLint("RtlHardcoded")
     override fun onImageLongPress(x: Float, y: Float, src: String) {
         popupAction.setItems(
@@ -1573,9 +1506,6 @@ EPDManager.setMode(refreshMode)
         )
     }
 
-    /**
-     * colorSelectDialog
-     */
     override fun onColorSelected(dialogId: Int, color: Int) = ReadBookConfig.durConfig.run {
         when (dialogId) {
             TEXT_COLOR -> {
@@ -1616,9 +1546,6 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * colorSelectDialog
-     */
     override fun onDialogDismissed(dialogId: Int) = Unit
 
     override fun onTocRegexDialogResult(tocRegex: String) {
@@ -1638,13 +1565,11 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /* 进度条跳转到指定章节 */
     override fun skipToChapter(index: Int) {
-        ReadBook.saveCurrentBookProgress() //退出章节跳转恢复此时进度
+        ReadBook.saveCurrentBookProgress()
         viewModel.openChapter(index)
     }
 
-    /* 全文搜索跳转 */
     override fun navigateToSearch(searchResult: SearchResult, index: Int) {
         viewModel.searchResultIndex = index
         skipToSearch(searchResult)
@@ -1663,7 +1588,6 @@ EPDManager.setMode(refreshMode)
         binding.readView.onLayoutPageCompleted(index, page)
     }
 
-    /* 全文搜索跳转 */
     private fun skipToSearch(searchResult: SearchResult) {
         if (searchResult.chapterIndex != ReadBook.durChapterIndex) {
             viewModel.openChapter(searchResult.chapterIndex) {
@@ -1693,7 +1617,6 @@ EPDManager.setMode(refreshMode)
                 1 -> binding.readView.curPage.selectEndMoveIndex(
                     0, lineIndex + 1, charIndex2
                 )
-                //consider change page, jump to scroll position
                 -1 -> binding.readView.curPage.selectEndMoveIndex(1, 0, charIndex2)
             }
             binding.readView.isTextSelected = true
@@ -1763,7 +1686,11 @@ EPDManager.setMode(refreshMode)
                 okButton {
                     ReadBook.book?.removeType(BookType.notShelf)
                     ReadBook.book?.save()
-                    SourceCallBack.callBackBook(SourceCallBack.ADD_BOOK_SHELF, ReadBook.bookSource, ReadBook.book)
+                    SourceCallBack.callBackBook(
+                        SourceCallBack.ADD_BOOK_SHELF,
+                        ReadBook.bookSource,
+                        ReadBook.book
+                    )
                     ReadBook.inBookshelf = true
                     setResult(RESULT_OK)
                 }
@@ -1776,17 +1703,23 @@ EPDManager.setMode(refreshMode)
     }
 
     private fun callBackBookEnd() {
-        SourceCallBack.callBackBook(SourceCallBack.END_READ, ReadBook.bookSource, ReadBook.book, ReadBook.curTextChapter?.chapter)
+        SourceCallBack.callBackBook(
+            SourceCallBack.END_READ,
+            ReadBook.bookSource,
+            ReadBook.book,
+            ReadBook.curTextChapter?.chapter
+        )
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        dismissTitleStyleOverlay()
         tts?.clearTts()
         textActionMenu.dismiss()
         popupAction.dismiss()
         binding.readView.onDestroy()
         ReadBook.unregister(this)
-        handler.removeCallbacksAndMessages(null) // 清理Handler消息
+        handler.removeCallbacksAndMessages(null)
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
             viewModel.removeFromBookshelf(null)
         }
@@ -1866,7 +1799,7 @@ EPDManager.setMode(refreshMode)
         observeEvent<Boolean>(EventBus.UP_SEEK_BAR) {
             readMenu.upSeekBar()
         }
-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_CONTENT) { //书源js函数触发刷新
+        observeEvent<Boolean>(EventBus.REFRESH_BOOK_CONTENT) {
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                 ReadBook.book?.let {
                     ReadBook.curTextChapter = null
@@ -1875,7 +1808,7 @@ EPDManager.setMode(refreshMode)
                 }
             }
         }
-        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) { //书源js函数触发刷新
+        observeEvent<Boolean>(EventBus.REFRESH_BOOK_TOC) {
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                 ReadBook.book?.let {
                     loadChapterList(it)
@@ -1890,9 +1823,6 @@ EPDManager.setMode(refreshMode)
         screenOffTimerStart()
     }
 
-    /**
-     * 重置黑屏时间
-     */
     override fun screenOffTimerStart() {
         handler.post {
             if (screenTimeOut < 0) {
@@ -1910,67 +1840,53 @@ EPDManager.setMode(refreshMode)
         }
     }
 
-    /**
-     * 在 Window.Callback 层面拦截音量键，比 Activity.dispatchKeyEvent 更低层级
-     * 华为/鸿蒙等 ROM 在 Activity 层之上显示音量条，必须在此拦截
-     */
     private fun interceptVolumeKeyAtWindowLevel() {
         val originalCallback = window.callback
         window.callback = object : Window.Callback {
             override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-                if (event?.keyCode == KeyEvent.KEYCODE_VOLUME_UP || 
+                if (event?.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
                     event?.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
                     if (event.action == KeyEvent.ACTION_DOWN) {
                         val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP)
                             PageDirection.PREV else PageDirection.NEXT
                         volumeKeyPage(direction, false)
                     }
-                    return true  // 在 Window 层面消费，鸿蒙也无法显示音量条
+                    return true
                 }
                 return originalCallback?.dispatchKeyEvent(event) ?: false
             }
 
-            override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-                return originalCallback?.dispatchTouchEvent(event) ?: false
-            }
+            override fun dispatchTouchEvent(event: MotionEvent?): Boolean =
+                originalCallback?.dispatchTouchEvent(event) ?: false
 
-            override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
-                return originalCallback?.dispatchTrackballEvent(event) ?: false
-            }
+            override fun dispatchTrackballEvent(event: MotionEvent?): Boolean =
+                originalCallback?.dispatchTrackballEvent(event) ?: false
 
-            override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
-                return originalCallback?.dispatchGenericMotionEvent(event) ?: false
-            }
+            override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean =
+                originalCallback?.dispatchGenericMotionEvent(event) ?: false
 
-            override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
-                return originalCallback?.dispatchPopulateAccessibilityEvent(event) ?: false
-            }
+            override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean =
+                originalCallback?.dispatchPopulateAccessibilityEvent(event) ?: false
 
-            override fun onCreatePanelView(featureId: Int): View? {
-                return originalCallback?.onCreatePanelView(featureId)
-            }
+            override fun onCreatePanelView(featureId: Int): View? =
+                originalCallback?.onCreatePanelView(featureId)
 
-            override fun onCreatePanelMenu(featureId: Int, menu: Menu): Boolean {
-                return originalCallback?.onCreatePanelMenu(featureId, menu) ?: false
-            }
+            override fun onCreatePanelMenu(featureId: Int, menu: Menu): Boolean =
+                originalCallback?.onCreatePanelMenu(featureId, menu) ?: false
 
-            override fun onPreparePanel(featureId: Int, view: View?, menu: Menu): Boolean {
-                return originalCallback?.onPreparePanel(featureId, view, menu) ?: false
-            }
+            override fun onPreparePanel(featureId: Int, view: View?, menu: Menu): Boolean =
+                originalCallback?.onPreparePanel(featureId, view, menu) ?: false
 
-            override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
-                return originalCallback?.onMenuOpened(featureId, menu) ?: false
-            }
+            override fun onMenuOpened(featureId: Int, menu: Menu): Boolean =
+                originalCallback?.onMenuOpened(featureId, menu) ?: false
 
-            override fun onMenuItemSelected(featureId: Int, item: MenuItem): Boolean {
-                return originalCallback?.onMenuItemSelected(featureId, item) ?: false
-            }
+            override fun onMenuItemSelected(featureId: Int, item: MenuItem): Boolean =
+                originalCallback?.onMenuItemSelected(featureId, item) ?: false
 
-            override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
-                return originalCallback?.dispatchKeyShortcutEvent(event) ?: false
-            }
+            override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean =
+                originalCallback?.dispatchKeyShortcutEvent(event) ?: false
 
-            override fun onWindowAttributesChanged(attrs: android.view.WindowManager.LayoutParams?) {
+            override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
                 originalCallback?.onWindowAttributesChanged(attrs)
             }
 
@@ -1994,21 +1910,17 @@ EPDManager.setMode(refreshMode)
                 originalCallback?.onPanelClosed(featureId, menu)
             }
 
-            override fun onSearchRequested(): Boolean {
-                return originalCallback?.onSearchRequested() ?: false
-            }
+            override fun onSearchRequested(): Boolean =
+                originalCallback?.onSearchRequested() ?: false
 
-            override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
-                return originalCallback?.onSearchRequested(searchEvent) ?: false
-            }
+            override fun onSearchRequested(searchEvent: SearchEvent?): Boolean =
+                originalCallback?.onSearchRequested(searchEvent) ?: false
 
-            override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
-                return originalCallback?.onWindowStartingActionMode(callback)
-            }
+            override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? =
+                originalCallback?.onWindowStartingActionMode(callback)
 
-            override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
-                return originalCallback?.onWindowStartingActionMode(callback, type)
-            }
+            override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? =
+                originalCallback?.onWindowStartingActionMode(callback, type)
 
             override fun onActionModeStarted(mode: ActionMode?) {
                 originalCallback?.onActionModeStarted(mode)
@@ -2020,131 +1932,306 @@ EPDManager.setMode(refreshMode)
         }
     }
 
+    private fun showTitleStyleOverlay() {
+        if (titleStyleOverlay != null) return
+
+        val metrics = resources.displayMetrics
+        val maxEditAreaHeight = (metrics.heightPixels * 0.4f).toInt()
+
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#80000000"))
+            isClickable = true
+            isFocusable = true
+        }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(32.dpToPx(), 24.dpToPx(), 32.dpToPx(), 24.dpToPx())
+            layoutParams = FrameLayout.LayoutParams(
+                (metrics.widthPixels * 0.9f).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { gravity = Gravity.CENTER }
+        }
+
+        card.addView(TextView(this).apply {
+            text = "标题样式"
+            textSize = 18f
+            setTextColor(Color.BLACK)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+        })
+
+        card.addView(TextView(this).apply {
+            text = "占位符：{title} 章节名、{count} 字数、{index} 章节号、{bookName} 书名"
+            textSize = 12f
+            setTextColor(Color.GRAY)
+            setPadding(0, 8.dpToPx(), 0, 8.dpToPx())
+        })
+
+        val editText = EditText(this).apply {
+            setText(getPrefString("book_title_html", ""))
+            setSelection(text.length)
+            hint = "输入 HTML+CSS"
+            setPadding(24, 16, 24, 16)
+            gravity = Gravity.TOP or Gravity.START
+            minLines = 6
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                    android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            isVerticalScrollBarEnabled = true
+            background = GradientDrawable().apply {
+                setStroke(2, Color.LTGRAY)
+                cornerRadius = 8f
+            }
+        }
+        titleStyleEditText = editText
+        card.addView(
+            editText,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                maxEditAreaHeight
+            )
+        )
+
+        val btnRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 16.dpToPx(), 0, 0)
+        }
+        val btnLp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+        btnRow.addView(buildOverlayButton("选择") { showPickTxtSourceDialog() }, btnLp)
+
+        btnRow.addView(buildOverlayButton("制作") {
+            titleStyleMakerLauncher.launch(
+                Intent(this, TitleStyleMakerActivity::class.java)
+            )
+        }, btnLp)
+
+        btnRow.addView(buildOverlayButton("导出") { showExportFileNameDialog() }, btnLp)
+        btnRow.addView(buildOverlayButton("取消") { dismissTitleStyleOverlay() }, btnLp)
+        btnRow.addView(buildOverlayButton("确定") {
+            putPrefString("book_title_html", editText.text.toString())
+            ReadBook.loadContent(false)
+            dismissTitleStyleOverlay()
+        }, btnLp)
+
+        card.addView(btnRow)
+        overlay.addView(card)
+
+        val root = findViewById<ViewGroup>(android.R.id.content)
+        root.addView(
+            overlay,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        titleStyleOverlay = overlay
+
+        editText.requestFocus()
+        editText.setSelection(editText.text.length)
+    }
+
+    private fun dismissTitleStyleOverlay() {
+        titleStyleOverlay?.let { overlay ->
+            (overlay.parent as? ViewGroup)?.removeView(overlay)
+        }
+        titleStyleOverlay = null
+        titleStyleEditText = null
+    }
+
+    private fun buildOverlayButton(text: String, onClick: () -> Unit): TextView {
+        return TextView(this, null, android.R.attr.borderlessButtonStyle).apply {
+            this.text = text
+            gravity = Gravity.CENTER
+            setPadding(4.dpToPx(), 12.dpToPx(), 4.dpToPx(), 12.dpToPx())
+            isClickable = true
+            isFocusable = true
+            isAllCaps = false
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            textSize = 14f
+
+            val attrs = intArrayOf(android.R.attr.colorAccent)
+            val ta = obtainStyledAttributes(attrs)
+            val accent = ta.getColor(0, Color.BLACK)
+            ta.recycle()
+            setTextColor(accent)
+
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun showPickTxtSourceDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("选择来源")
+            .setItems(arrayOf("自带文件", "系统文件")) { _, which ->
+                when (which) {
+                    0 -> {
+                        isPickingTitleTxt = true
+                        FilePickerDialog.show(
+                            supportFragmentManager,
+                            mode = HandleFileContract.FILE,
+                            allowExtensions = arrayOf("txt")
+                        )
+                    }
+                    1 -> pickTxtLauncher.launch(arrayOf("text/plain", "text/*"))
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showExportFileNameDialog() {
+        val edit = EditText(this).apply {
+            setText("book_title_style.txt")
+            setSelection(text.length)
+            setPadding(48, 32, 48, 32)
+            hint = "文件名"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("导出文件名")
+            .setView(edit)
+            .setPositiveButton("导出") { _, _ ->
+                var name = edit.text.toString().trim()
+                if (name.isBlank()) name = "book_title_style.txt"
+                if (!name.endsWith(".txt", ignoreCase = true)) name = "$name.txt"
+                createTxtLauncher.launch(name)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun loadTitleTxtFromUri(uri: android.net.Uri) {
+        try {
+            val text = contentResolver.openInputStream(uri)?.use { input ->
+                input.bufferedReader(Charsets.UTF_8).readText()
+            }
+            if (text.isNullOrEmpty()) {
+                Toast.makeText(this, "文件内容为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (titleStyleEditText != null) {
+                titleStyleEditText?.setText(text)
+                titleStyleEditText?.setSelection(text.length)
+            } else {
+                showTitleStyleOverlay()
+                titleStyleEditText?.setText(text)
+                titleStyleEditText?.setSelection(text.length)
+            }
+            Toast.makeText(this, "已载入", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            AppLog.put("读取 txt 出错: ${e.localizedMessage}", e)
+            Toast.makeText(this, "读取失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onResult(data: Intent) {
+        if (!isPickingTitleTxt) return
+        isPickingTitleTxt = false
+        val uri = data.data ?: return
+        loadTitleTxtFromUri(uri)
+    }
+
+    private var readStartTime: Long = 0L
+    private var lastRecordTime: Long = 0L
+    private var recordHeartJob: Job? = null
+    private val minValidReadTime = 10000L
+    private val heartInterval = 60000L
+
+    private fun initReadTimer() {
+        val now = System.currentTimeMillis()
+        readStartTime = now
+        lastRecordTime = now
+        startRecordHeartJob()
+    }
+
+    private fun startRecordHeartJob() {
+        recordHeartJob?.cancel()
+        recordHeartJob = lifecycleScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(heartInterval)
+                saveReadRecord()
+            }
+        }
+    }
+
+    private fun stopReadTimer() {
+        recordHeartJob?.cancel()
+        saveReadRecord()
+    }
+
+    private fun saveReadRecord() {
+        val nowTime = System.currentTimeMillis()
+        val spendTime = nowTime - lastRecordTime
+        if (spendTime < minValidReadTime) return
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val today = java.time.LocalDate.now().toString()
+            val todayRecord = appDb.readRecordDailyDao.get(today)
+            if (todayRecord == null) {
+                val newRecord = io.legado.app.data.entities.ReadRecordDaily(
+                    date = today,
+                    readTime = spendTime,
+                    updatedAt = nowTime
+                )
+                appDb.readRecordDailyDao.insert(newRecord)
+            } else {
+                todayRecord.readTime += spendTime
+                todayRecord.updatedAt = nowTime
+                appDb.readRecordDailyDao.insert(todayRecord)
+            }
+            lastRecordTime = nowTime
+        }
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (!getPrefBoolean("shake_turn_page", false)) return
+        event ?: return
+        if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+
+        val curX = event.values[0]
+        val angleWave = kotlin.math.abs(curX - preSensorX)
+
+        if (angleWave > baseErrorRange) {
+            stableDetectTime = 0L
+            preSensorX = curX
+            return
+        }
+
+        if (stableDetectTime == 0L) {
+            stableDetectTime = System.currentTimeMillis()
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - stableDetectTime >= autoCalibrateStayMs) {
+            baseTiltX = curX
+            stableDetectTime = 0L
+            currentTiltState = TiltState.IDLE
+        }
+
+        preSensorX = curX
+        val relativeOffset = curX - baseTiltX
+
+        when (currentTiltState) {
+            TiltState.IDLE -> {
+                if (relativeOffset > swingOutThreshold || relativeOffset < -swingOutThreshold) {
+                    currentTiltState = TiltState.TILT_SIDE
+                }
+            }
+            TiltState.TILT_SIDE -> {
+                if (kotlin.math.abs(relativeOffset) < swingBackThreshold + backTolerance) {
+                    triggerTurnPage()
+                }
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
     companion object {
         const val RESULT_DELETED = 100
+        private const val MENU_TITLE_STYLE = 0x7F0F0001
     }
-    
-private var readStartTime: Long = 0L
-private var lastRecordTime: Long = 0L
-private var recordHeartJob: Job? = null
-private val minValidReadTime = 10000L       // 最小有效统计时长 10秒
-private val heartInterval = 60000L           // 每分钟心跳保存一次
-
-/** 进入阅读页初始化计时 */
-private fun initReadTimer() {
-    val now = System.currentTimeMillis()
-    readStartTime = now
-    lastRecordTime = now
-    startRecordHeartJob()
-}
-
-/** 启动定时心跳任务 每分钟自动保存时长 */
-private fun startRecordHeartJob() {
-    recordHeartJob?.cancel()
-    recordHeartJob = lifecycleScope.launch(Dispatchers.IO) {
-        while (isActive) {
-            delay(heartInterval)
-            saveReadRecord()
-        }
-    }
-}
-
-/** 停止计时并立即保存最后一段时长 */
-private fun stopReadTimer() {
-    recordHeartJob?.cancel()
-    saveReadRecord()
-}
-
-/** 保存当日阅读时长记录 */
-private fun saveReadRecord() {
-    val nowTime = System.currentTimeMillis()
-    val spendTime = nowTime - lastRecordTime
-    if (spendTime < minValidReadTime) return
-
-    lifecycleScope.launch(Dispatchers.IO) {
-        val today = java.time.LocalDate.now().toString()
-        val todayRecord = appDb.readRecordDailyDao.get(today)
-        if (todayRecord == null) {
-            val newRecord = io.legado.app.data.entities.ReadRecordDaily(
-                date = today,
-                readTime = spendTime,
-                updatedAt = nowTime
-            )
-            appDb.readRecordDailyDao.insert(newRecord)
-        } else {
-            todayRecord.readTime += spendTime
-            todayRecord.updatedAt = nowTime
-            appDb.readRecordDailyDao.insert(todayRecord)
-        }
-        lastRecordTime = nowTime
-    }
-}
-
-
-/**
- * 统一翻页触发入口
- * 自带短时锁定，避免连续误翻
- */
-private fun triggerTurnPage(direction: PageDirection) {
-    if (isShakeTurnPage) return
-    isShakeTurnPage = true
-    // 调用项目原生翻页方法
-    binding.readView.pageDelegate?.keyTurnPage(direction)
-    // 重置倾斜状态为待机
-    currentTiltState = TiltState.IDLE
-    // 延时解锁防连击
-    lifecycleScope.launch(Dispatchers.Main) {
-        delay(700)
-        isShakeTurnPage = false
-    }
-}
-
-override fun onSensorChanged(event: SensorEvent?) {
-    if (!getPrefBoolean("shake_turn_page", false)) return
-    event ?: return
-    if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
-
-    val curX = event.values[0]
-    val angleWave = kotlin.math.abs(curX - preSensorX)
-
-    // 大幅度左右晃动直接拦截，不触发翻页
-    if (angleWave > baseErrorRange) {
-        stableDetectTime = 0L
-        preSensorX = curX
-        return
-    }
-
-    if (stableDetectTime == 0L) {
-        stableDetectTime = System.currentTimeMillis()
-    }
-
-    val now = System.currentTimeMillis()
-    // 静置自动重校准基准
-    if (now - stableDetectTime >= autoCalibrateStayMs) {
-        baseTiltX = curX
-        stableDetectTime = 0L
-        currentTiltState = TiltState.IDLE
-    }
-
-    preSensorX = curX
-    val relativeOffset = curX - baseTiltX
-
-    when (currentTiltState) {
-        TiltState.IDLE -> {
-            // 左倾、右倾达到阈值都进入待回弹状态
-            if (relativeOffset > swingOutThreshold || relativeOffset < -swingOutThreshold) {
-                currentTiltState = TiltState.TILT_SIDE
-            }
-        }
-        TiltState.TILT_SIDE -> {
-            // 任意一侧倾斜回弹归位，触发下一页
-            if (kotlin.math.abs(relativeOffset) < swingBackThreshold + backTolerance) {
-                triggerTurnPage()
-            }
-        }
-    }
-}
-
-override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
 }

@@ -123,6 +123,15 @@
                 android:resource="@xml/spen_remote_actions" />
         </activity>
 
+        <!-- ★ 标题样式制作页（WebView 加载本地 HTML 编辑器） -->
+        <activity
+            android:name=".ui.book.read.TitleStyleMakerActivity"
+            android:configChanges="locale|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
+
         <!-- 阅读漫画界面 -->
         <activity
             android:name=".ui.book.manga.ReadMangaActivity"
